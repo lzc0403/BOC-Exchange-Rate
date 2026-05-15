@@ -107,7 +107,10 @@ class ExchangeRateFetcher:
         # 如果是追加模式且文件已存在
         if os.path.exists(filename) and filename == self.data_file:
             existing_df = pd.read_csv(filename)
-            existing_df['date'] = pd.to_datetime(existing_df['date'])
+            
+            # 确保两个DataFrame的date列都是字符串类型
+            existing_df['date'] = existing_df['date'].astype(str)
+            df['date'] = df['date'].astype(str)
             
             # 合并数据，去重
             combined_df = pd.concat([existing_df, df], ignore_index=True)
