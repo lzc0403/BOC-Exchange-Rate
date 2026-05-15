@@ -1,210 +1,140 @@
 #!/usr/bin/env python3
 """
-美元兑人民币汇率数据获取工具
-支持历史数据获取和每日自动运行
-
-数据来源：
-1. 主数据源：Frankfurter.app (欧洲央行汇率数据，免费无需API Key)
-2. 备用数据源：ExchangeRate-API (免费)
-
-说明：
-- 数据基于欧洲央行(ECB)每日参考汇率
-- 与银行现汇买入价有0.1%-0.3%的点差（银行利润）
-- 与在岸人民币(CNY)有微小差异
+中国银行美元现汇买入价 - 每日自动获取
+数据源: https://www.boc.cn/sourcedb/whpj/
 """
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import os
 import sys
-import warnings
-
-# 忽略SSL警告
-warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
 
-class ExchangeRateFetcher:
-    """汇率数据获取器"""
-    
+class BOCExchangeRateFetcher:
+    """中国银行外汇牌价获取器"""
+
     def __init__(self):
         self.data_file = "data.csv"
-        self.frankfurter_base = "https://api.frankfurter.app"
-        self.exchangerate_base = "https://api.exchangerate-api.com/v4/latest/USD"
-        
-    def get_historical_data(self, start_date=None, end_date=None):
+        self.url = "https://www.boc.cn/sourcedb/whpj/"
+
+    def fetch_current_rate(self):
         """
-        获取历史汇率数据
-        数据源：Frankfurter.app (欧洲央行)
-        
-        返回: DataFrame with columns [date, rate]
-        """
-        print("正在获取历史汇率数据...")
-        
-        # 默认获取最近一年
-        if not end_date:
-            end_date = datetime.now().strftime('%Y-%m-%d')
-        if not start_date:
-            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        
-        try:
-            # 使用 frankfurter.app API
-            url = f"{self.frankfurter_base}/{start_date}..{end_date}?from=USD&to=CNY"
-            r = requests.get(url, timeout=30, verify=False)
-            data = r.json()
-            
-            if 'rates' not in data:
-                print(f"API返回错误: {data}")
-                return None
-            
-            # 转换为DataFrame
-            records = []
-            for date_str, rate_data in data['rates'].items():
-                records.append({
-                    'date': date_str,
-                    'rate': rate_data['CNY']
-                })
-            
-            df = pd.DataFrame(records)
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date').reset_index(drop=True)
-            
-            print(f"成功获取 {len(df)} 条记录")
-            print(f"日期范围: {df['date'].min().strftime('%Y-%m-%d')} 至 {df['date'].max().strftime('%Y-%m-%d')}")
-            
-            return df
-            
-        except Exception as e:
-            print(f"获取数据失败: {e}")
-            return None
-    
-    def get_current_rate(self):
-        """
-        获取当前实时汇率
-        数据源：ExchangeRate-API (免费)
+        获取当前美元现汇买入价
+        返回: {'date': '2026/05/15', 'time': '17:24:59', 'rate': 679.98} 或 None
         """
         try:
-            r = requests.get(self.exchangerate_base, timeout=10, verify=False)
-            data = r.json()
-            return {
-                'base': data['base'],
-                'date': data['date'],
-                'rate': data['rates']['CNY']
-            }
-        except Exception as e:
-            print(f"获取实时汇率失败: {e}")
+            s = requests.Session()
+            s.trust_env = False
+            r = s.get(self.url, timeout=15)
+            r.encoding = 'utf-8'
+
+            soup = BeautifulSoup(r.text, 'html.parser')
+            tables = soup.find_all('table')
+
+            for table in tables:
+                rows = table.find_all('tr')
+                for row in rows:
+                    tds = row.find_all('td')
+                    if tds and '美元' in tds[0].text:
+                        cells = [c.text.strip() for c in tds]
+                        rate = float(cells[1]) / 100  # 679.98 -> 6.7998
+                        pub_datetime = cells[6]  # "2026/05/15 17:24:59"
+                        date_str = pub_datetime.split(' ')[0].replace('/', '-')
+                        time_str = cells[7]  # "17:24:59"
+
+                        return {
+                            'date': date_str,
+                            'time': time_str,
+                            'rate': rate,
+                            'rate_raw': cells[1]
+                        }
+
+            print("未找到美元数据")
             return None
-    
-    def save_to_csv(self, df, filename=None):
+
+        except Exception as e:
+            print(f"获取失败: {e}")
+            return None
+
+    def save_to_csv(self, data):
         """保存数据到CSV文件"""
-        if df is None or df.empty:
+        if data is None:
             print("没有数据可保存")
             return
-        
-        if filename is None:
-            filename = self.data_file
-        
-        # 如果是追加模式且文件已存在
-        if os.path.exists(filename) and filename == self.data_file:
-            existing_df = pd.read_csv(filename)
-            
-            # 确保两个DataFrame的date列都是字符串类型
+
+        new_row = pd.DataFrame([{
+            'date': data['date'],
+            'rate': data['rate']
+        }])
+
+        if os.path.exists(self.data_file):
+            existing_df = pd.read_csv(self.data_file)
             existing_df['date'] = existing_df['date'].astype(str)
-            df['date'] = df['date'].astype(str)
-            
-            # 合并数据，去重
-            combined_df = pd.concat([existing_df, df], ignore_index=True)
-            combined_df = combined_df.drop_duplicates(subset=['date'], keep='last')
-            combined_df = combined_df.sort_values('date')
-            combined_df.to_csv(filename, index=False)
-            print(f"数据已追加到 {filename}，共 {len(combined_df)} 条记录")
+            new_row['date'] = new_row['date'].astype(str)
+
+            combined = pd.concat([existing_df, new_row], ignore_index=True)
+            combined = combined.drop_duplicates(subset=['date'], keep='last')
+            combined = combined.sort_values('date')
+            combined.to_csv(self.data_file, index=False)
+            print(f"数据已更新，共 {len(combined)} 条记录")
         else:
-            df.to_csv(filename, index=False)
-            print(f"数据已保存到 {filename}，共 {len(df)} 条记录")
-    
+            new_row.to_csv(self.data_file, index=False)
+            print(f"数据已保存，共 {len(new_row)} 条记录")
+
     def run_daily(self):
-        """每日运行：获取今天的汇率"""
-        print(f"获取今日汇率数据...")
-        
-        # 获取当前实时汇率
-        current = self.get_current_rate()
-        if current:
-            print(f"当前 USD/CNY 汇率: {current['rate']}")
-            print(f"数据日期: {current['date']}")
-            
-            # 保存今日数据
-            today_df = pd.DataFrame([{
-                'date': current['date'],
-                'rate': current['rate']
-            }])
-            self.save_to_csv(today_df)
+        """每日运行"""
+        print("正在获取中国银行美元现汇买入价...")
+
+        data = self.fetch_current_rate()
+        if data:
+            print(f"日期: {data['date']}")
+            print(f"时间: {data['time']}")
+            print(f"现汇买入价: {data['rate']:.4f} (牌价: {data['rate_raw']})")
+            self.save_to_csv(data)
         else:
-            print("未能获取今日汇率")
+            print("获取失败")
 
 
 def main():
-    """主函数"""
-    fetcher = ExchangeRateFetcher()
-    
-    # 检查命令行参数
+    fetcher = BOCExchangeRateFetcher()
+
     if len(sys.argv) > 1:
         command = sys.argv[1]
-        
+
         if command == "daily":
-            # 每日运行模式
             fetcher.run_daily()
-            
-        elif command == "historical":
-            # 历史数据获取模式
-            if len(sys.argv) > 3:
-                start_date = sys.argv[2]
-                end_date = sys.argv[3]
-            else:
-                # 默认获取最近一年数据
-                end_date = datetime.now().strftime('%Y-%m-%d')
-                start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-            
-            df = fetcher.get_historical_data(start_date, end_date)
-            if df is not None and not df.empty:
-                filename = f"historical_data_{start_date}_to_{end_date}.csv"
-                fetcher.save_to_csv(df, filename)
-                
-        elif command == "test":
-            # 测试模式：获取最近一周数据
-            end_date = datetime.now().strftime('%Y-%m-%d')
-            start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-            df = fetcher.get_historical_data(start_date, end_date)
-            if df is not None and not df.empty:
-                fetcher.save_to_csv(df, "test_data.csv")
-                print("\n数据预览:")
-                print(df)
-                
+
         elif command == "current":
-            # 获取当前汇率
-            current = fetcher.get_current_rate()
-            if current:
-                print(f"USD/CNY 当前汇率: {current['rate']}")
-                print(f"数据日期: {current['date']}")
-                
+            data = fetcher.fetch_current_rate()
+            if data:
+                print(f"中国银行美元现汇买入价")
+                print(f"日期: {data['date']} {data['time']}")
+                print(f"汇率: {data['rate']:.4f}")
+
+        elif command == "test":
+            data = fetcher.fetch_current_rate()
+            if data:
+                print(f"测试成功!")
+                print(f"  日期: {data['date']}")
+                print(f"  时间: {data['time']}")
+                print(f"  现汇买入价: {data['rate']:.4f}")
+                print(f"  牌价原始值: {data['rate_raw']}")
+
         else:
             print("用法:")
-            print("  python main.py daily          # 获取今日汇率")
-            print("  python main.py current        # 显示当前实时汇率")
-            print("  python main.py historical     # 获取历史一年数据")
-            print("  python main.py historical 2025-05-15 2026-05-15  # 指定日期范围")
-            print("  python main.py test           # 测试模式（最近一周）")
+            print("  python main.py daily    # 获取今日汇率并保存")
+            print("  python main.py current  # 显示当前汇率")
+            print("  python main.py test     # 测试抓取")
     else:
-        # 默认显示帮助
-        print("美元兑人民币汇率数据获取工具")
+        print("中国银行美元现汇买入价获取工具")
         print("=" * 40)
+        print("数据源: https://www.boc.cn/sourcedb/whpj/")
         print("\n用法:")
-        print("  python main.py daily          # 获取今日汇率")
-        print("  python main.py current        # 显示当前实时汇率")
-        print("  python main.py historical     # 获取历史一年数据")
-        print("  python main.py test           # 测试模式（最近一周）")
-        print("\n数据来源:")
-        print("  - Frankfurter.app (欧洲央行每日参考汇率)")
-        print("  - ExchangeRate-API (实时汇率)")
+        print("  python main.py daily    # 获取今日汇率并保存")
+        print("  python main.py current  # 显示当前汇率")
+        print("  python main.py test     # 测试抓取")
 
 
 if __name__ == "__main__":
