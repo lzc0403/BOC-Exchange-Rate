@@ -2,5 +2,3 @@ requests
 pandas
 beautifulsoup4
 lxml
-ddddocr
-playwright
