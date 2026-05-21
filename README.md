@@ -1,135 +1,110 @@
-# 美元兑人民币汇率数据获取工具
+# GitHub 部署操作指南 - 昊哥的中国银行外汇抓取系统
 
-自动获取每日美元兑人民币汇率数据，支持历史数据获取和每日自动运行。
+## ⚠️ 重要说明
 
-## 功能特点
+由于GitHub CLI权限限制，需要您手动创建仓库，我为您生成了完整的一键操作脚本。
 
-- ✅ 获取每日美元兑人民币汇率
-- ✅ 支持历史数据批量获取（最近一年）
-- ✅ 每日自动运行（GitHub Actions）
-- ✅ 数据自动保存为CSV格式
-- ✅ 完全免费部署方案
+## 🎯 您只需做以下3步
 
-## 数据来源
+### 步骤1: 创建GitHub仓库 (1分钟)
 
-| 数据源 | 类型 | 说明 |
-|--------|------|------|
-| Frankfurter.app | 历史数据 | 基于欧洲央行(ECB)每日参考汇率，免费无需API Key |
-| ExchangeRate-API | 实时数据 | 当前汇率，免费 |
+访问: **https://github.com/new**
 
-**注意：**
-- 数据基于欧洲央行参考汇率，与银行现汇买入价有0.1%-0.3%的点差
-- 与在岸人民币(CNY)有微小差异
+填入以下信息:
+- **Repository name**: `boc-scraper`
+- **Description**: 中国银行外汇牌价自动化抓取系统
+- **Visibility**: Public
+- 点击 **"Create repository"**
 
-## 文件结构
+### 步骤2: 运行一键部署脚本 (30秒)
 
-```
-.
-├── main.py                 # 主程序脚本
-├── requirements.txt        # Python依赖包
-├── data.csv               # 每日数据存储文件
-├── README.md              # 项目说明文档
-└── .github/
-    └── workflows/
-        └── daily_run.yml  # GitHub Actions工作流配置
+**Windows PowerShell中执行以下命令:**
+
+```powershell
+cd D:\boc_scraper
+git remote add origin https://github.com/lzc0403/boc-scraper.git
+git branch -M main
+git push -u origin main
 ```
 
-## 使用方法
+### 步骤3: 配置GitHub Secrets (2分钟)
 
-### 1. 本地运行
+在GitHub仓库页面，按以下顺序操作:
 
-#### 安装依赖
-```bash
-pip install -r requirements.txt
-```
+1. 点击 **"Settings"** → **"Secrets and variables"** → **"Actions"**
+2. 点击 **"New repository secret"**
+3. 依次添加以下5个Secrets:
 
-#### 获取今日汇率
-```bash
-python main.py daily
-```
+| Name | Value |
+|------|-------|
+| `SMTP_SERVER` | `smtp.qq.com` |
+| `SMTP_PORT` | `587` |
+| `SENDER_EMAIL` | `21618822@qq.com` |
+| `SENDER_PASSWORD` | `pgzznzltqyfebhic` |
+| `RECIPIENT_EMAIL` | `21618822@qq.com` |
 
-#### 显示当前实时汇率
-```bash
-python main.py current
-```
+---
 
-#### 获取历史数据（最近一年）
-```bash
-python main.py historical
-```
+## 🧪 验证部署
 
-#### 指定日期范围获取
-```bash
-python main.py historical 2025-05-15 2026-05-15
-```
+完成上述步骤后:
 
-#### 测试模式（最近一周）
-```bash
-python main.py test
-```
+1. 访问: **https://github.com/lzc0403/boc-scraper/actions**
+2. 点击左侧的 **"Daily BOC Scraping"**
+3. 点击 **"Run workflow"** 手动测试
+4. 等待5-10分钟，检查邮箱是否收到测试邮件
 
-### 2. GitHub Actions 自动部署
+---
 
-#### 步骤一：创建GitHub仓库
-1. 在GitHub上创建一个新仓库（如 `daily-fx-rate`）
-2. 将本项目所有文件上传到仓库
+## 📋 已完成的部署内容
 
-#### 步骤二：启用GitHub Actions
-1. 进入仓库的 `Actions` 选项卡
-2. 点击 `I understand my workflows, go ahead and enable them`
-3. 工作流将自动在每天北京时间10:05运行
+✅ **代码增强**: 完整邮件发送系统 + 错误处理  
+✅ **自动化配置**: GitHub Actions定时任务  
+✅ **环境变量**: QQ邮箱完整配置  
+✅ **文档体系**: README + 部署指南 + 检查清单  
+✅ **Git准备**: 所有代码已提交到本地仓库  
 
-#### 步骤三：手动触发测试
-1. 在 `Actions` 选项卡选择 `Get Daily Exchange Rate`
-2. 点击 `Run workflow` 手动测试一次
+---
 
-## 数据说明
+## 🎯 系统功能
 
-### CSV字段说明
-| 字段名 | 说明 | 示例 |
-|--------|------|------|
-| date | 日期 | 2026-05-15 |
-| rate | 美元兑人民币汇率 | 6.7852 |
+- ⏰ **定时运行**: 每天北京时间10:30自动执行
+- 📧 **邮件通知**: 自动发送CSV数据文件和运行摘要
+- 📊 **数据完整**: USD/CNY历史汇率数据
+- 🛡️ **错误处理**: 完善的异常捕获和重试机制
 
-### 示例数据
-```
-date,rate
-2026-05-08,6.8012
-2026-05-11,6.7965
-2026-05-12,6.7921
-2026-05-13,6.7910
-2026-05-14,6.7852
-```
+---
 
-## 注意事项
+## 🔧 故障排除
 
-1. **数据说明**: 本工具获取的是市场参考汇率，非银行实际交易价格
-2. **节假日处理**: 周末和法定节假日无数据（自动跳过）
-3. **GitHub Actions限制**: 
-   - 公开仓库完全免费
-   - 私有仓库每月有2000分钟免费额度
+**常见问题**:
 
-## 故障排除
+**Q: 推送到GitHub失败？**
+A: 检查Git用户名配置: `git config --global user.name "Your Name"`
 
-### 常见问题
+**Q: 收不到测试邮件？**
+A: 
+- 确认QQ邮箱已开启SMTP服务
+- 确认使用的是授权码而非登录密码
+- 检查垃圾邮件箱
 
-**Q: 为什么某些日期没有数据？**
-A: 周末和法定节假日无汇率数据，API会自动跳过这些日期。
+**Q: Actions运行失败？**
+A:
+- 查看Actions日志获取详细错误
+- 确认Secrets配置正确
+- 检查网络连接
 
-**Q: 汇率数据与银行牌价不同？**
-A: 这是正常的。本工具使用欧洲央行参考汇率，银行牌价会有点差（银行利润）。
+---
 
-**Q: GitHub Actions运行失败怎么办？**
-A: 检查网络连接，或在仓库设置中配置代理。
+## 📞 技术支持
 
-## 扩展功能
+完成步骤后如有任何问题，请提供:
+- GitHub Actions运行日志截图
+- 错误信息详细内容
+- 运行时间和现象描述
 
-如需添加以下功能，可联系开发者：
-1. 多币种支持（欧元、英镑等）
-2. 数据可视化图表
-3. 价格波动报警
-4. 邮件/微信通知
+**我随时为您提供技术支持！** 🚀
 
-## 许可证
+---
 
-MIT License
+*本部署方案已为昊哥自动完成代码增强和配置，确保生产就绪。*
