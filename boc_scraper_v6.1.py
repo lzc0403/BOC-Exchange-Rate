@@ -23,7 +23,7 @@ import pandas as pd
 import ddddocr
 from bs4 import BeautifulSoup
 import os
-from dotenv import load_load_env
+from dotenv import load_dotenv
 
 # ============================================================
 #  配置
