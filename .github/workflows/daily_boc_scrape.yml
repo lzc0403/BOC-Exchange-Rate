@@ -41,6 +41,19 @@ jobs:
       run: |
         python boc_scraper_v6.1.py
 
+    - name: Sync data to site directory
+      run: |
+        cp boc_usd_cny.csv site/boc_usd_cny.csv
+        echo "数据已同步到site目录"
+
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add boc_usd_cny.csv site/boc_usd_cny.csv
+        git diff --staged --quiet || git commit -m "更新汇率数据 $(date +'%Y-%m-%d')"
+        git push
+
     - name: Upload results
       uses: actions/upload-artifact@v4
       if: always()
