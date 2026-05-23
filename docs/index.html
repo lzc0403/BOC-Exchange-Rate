@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中行美元现汇买入价</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --blue:   #1a56db;
+      --blue-bg:#eff6ff;
+      --green:  #059669;
+      --red:    #dc2626;
+      --text:   #111827;
+      --muted:  #6b7280;
+      --border: #e5e7eb;
+      --bg:     #f3f4f6;
+      --card:   #ffffff;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: var(--blue);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px;
+    }
+    .brand-title { font-size: 16px; font-weight: 700; }
+    .brand-sub   { font-size: 12px; color: var(--muted); }
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .dl-btn:hover { background: #1749c0; }
+
+    /* ── Main ── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    /* ── Stat cards ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .card-value.up   { color: var(--green); }
+    .card-value.down { color: var(--red);   }
+    .card-sub { font-size: 12px; color: var(--muted); }
+
+    /* ── Chart card ── */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .chart-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .chart-title { font-size: 15px; font-weight: 600; }
+    .range-group { display: flex; gap: 4px; }
+    .range-btn {
+      padding: 5px 13px;
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .range-btn:hover  { border-color: var(--blue); color: var(--blue); }
+    .range-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+    /* ── Table ── */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+    .table-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-head-title { font-size: 14px; font-weight: 600; }
+    .table-scroll { max-height: 320px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th {
+      padding: 10px 20px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      background: #f9fafb;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+    }
+    tbody tr { border-bottom: 1px solid #f3f4f6; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafafa; }
+    tbody td { padding: 9px 20px; }
+    .chg.up   { color: var(--green); font-weight: 500; }
+    .chg.down { color: var(--red);   font-weight: 500; }
+    .chg.flat { color: var(--muted); }
+
+    /* ── Skeleton loading ── */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+      height: 1em;
+      display: inline-block;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── Error ── */
+    .error-box {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+    .error-box .emoji { font-size: 36px; margin-bottom: 10px; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">🏦</div>
+    <div>
+      <div class="brand-title">中行美元现汇买入价</div>
+      <div class="brand-sub">数据来源：中国银行官网 · 每日自动更新</div>
+    </div>
+  </div>
+  <a class="dl-btn" id="dlBtn" href="#">
+    ⬇ 下载全部数据
+  </a>
+</header>
+
+<main>
+  <!-- Stat cards -->
+  <div class="stats">
+    <div class="card">
+      <div class="card-label">最新汇率 USD/CNY</div>
+      <div class="card-value" id="latestRate">—</div>
+      <div class="card-sub"  id="latestDate">加载中…</div>
+    </div>
+    <div class="card">
+      <div class="card-label">近30日涨跌</div>
+      <div class="card-value" id="chg30">—</div>
+      <div class="card-sub"  id="chg30sub">vs 30天前</div>
+    </div>
+    <div class="card">
+      <div class="card-label">近30日最高</div>
+      <div class="card-value" id="hi30">—</div>
+      <div class="card-sub"  id="hi30date">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">近30日最低</div>
+      <div class="card-value" id="lo30">—</div>
+      <div class="card-sub"  id="lo30date">—</div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="chart-card">
+    <div class="chart-top">
+      <div class="chart-title">汇率走势</div>
+      <div class="range-group">
+        <button class="range-btn" data-days="30">1个月</button>
+        <button class="range-btn" data-days="90">3个月</button>
+        <button class="range-btn" data-days="180">6个月</button>
+        <button class="range-btn" data-days="365">1年</button>
+        <button class="range-btn active" data-days="0">全部</button>
+      </div>
+    </div>
+    <canvas id="rateChart" height="280"></canvas>
+  </div>
+
+  <!-- Recent data table -->
+  <div class="table-card">
+    <div class="table-head">
+      <div class="table-head-title">最近交易日数据</div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>现汇买入价</th>
+            <th>日涨跌</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="3" style="padding:20px;color:#9ca3af;text-align:center">加载中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>
+  周一至周五 北京时间 10:30 自动更新 ·
+  <a href="https://github.com/lzc0403/BOC-Exchange-Rate" target="_blank">GitHub 仓库</a> ·
+  <span id="updateTime"></span>
+</footer>
+
+<script>
+// ────────────────────────────────────────────────
+// 配置（如果以后改了仓库名，只需改这里）
+// ────────────────────────────────────────────────
+const REPO    = 'lzc0403/BOC-Exchange-Rate';
+const BRANCH  = 'master';
+const CSV_FILE = 'data.csv';
+const RAW_URL  = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${CSV_FILE}`;
+const DL_URL   = RAW_URL;   // 直接下载原始CSV
+
+// ────────────────────────────────────────────────
+// 解析 CSV
+// ────────────────────────────────────────────────
+async function fetchData() {
+  const res = await fetch(RAW_URL + '?_=' + Date.now());
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const txt = await res.text();
+  return txt.trim().split('\n').slice(1)
+    .map(line => {
+      const [date, rate] = line.split(',');
+      return { date: date.trim(), rate: parseFloat(rate) };
+    })
+    .filter(d => d.date && !isNaN(d.rate));
+}
+
+// ────────────────────────────────────────────────
+// 渲染统计卡片
+// ────────────────────────────────────────────────
+function renderStats(all) {
+  const latest  = all[all.length - 1];
+  const prev30  = all[Math.max(0, all.length - 31)];
+  const last30  = all.slice(-30);
+
+  document.getElementById('latestRate').textContent = latest.rate.toFixed(4);
+  document.getElementById('latestDate').textContent = latest.date + ' 更新';
+
+  const chg    = latest.rate - prev30.rate;
+  const chgPct = (chg / prev30.rate * 100).toFixed(2);
+  const sign   = chg >= 0 ? '+' : '';
+  const cls    = chg > 0 ? 'up' : chg < 0 ? 'down' : '';
+  const el     = document.getElementById('chg30');
+  el.textContent    = sign + chg.toFixed(4);
+  el.className      = 'card-value ' + cls;
+  document.getElementById('chg30sub').textContent =
+    `${sign}${chgPct}% vs ${prev30.date}`;
+
+  const hi = last30.reduce((a,b) => a.rate > b.rate ? a : b);
+  const lo = last30.reduce((a,b) => a.rate < b.rate ? a : b);
+  document.getElementById('hi30').textContent     = hi.rate.toFixed(4);
+  document.getElementById('hi30date').textContent = hi.date;
+  document.getElementById('lo30').textContent     = lo.rate.toFixed(4);
+  document.getElementById('lo30date').textContent = lo.date;
+}
+
+// ────────────────────────────────────────────────
+// 渲染表格（最新50条，倒序）
+// ────────────────────────────────────────────────
+function renderTable(all) {
+  const rows = all.slice(-50).reverse();
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = rows.map((d, i) => {
+    const prev = rows[i + 1];
+    let chgHtml = '<span class="chg flat">—</span>';
+    if (prev) {
+      const diff = d.rate - prev.rate;
+      const sign = diff >= 0 ? '+' : '';
+      const cls  = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+      chgHtml = `<span class="chg ${cls}">${sign}${diff.toFixed(4)}</span>`;
+    }
+    return `<tr>
+      <td>${d.date}</td>
+      <td><strong>${d.rate.toFixed(4)}</strong></td>
+      <td>${chgHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ────────────────────────────────────────────────
+// Chart.js
+// ────────────────────────────────────────────────
+let chartInstance = null;
+
+function buildChart(all) {
+  const ctx  = document.getElementById('rateChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 340);
+  grad.addColorStop(0, 'rgba(26,86,219,0.18)');
+  grad.addColorStop(1, 'rgba(26,86,219,0)');
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: all.map(d => d.date),
+      datasets: [{
+        data: all.map(d => d.rate),
+        borderColor: '#1a56db',
+        backgroundColor: grad,
+        borderWidth: 1.8,
+        fill: true,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#1a56db',
+        tension: 0.15,
+      }]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#111827',
+          titleColor: '#9ca3af',
+          bodyColor: '#fff',
+          padding: 10,
+          callbacks: {
+            label: ctx => ' USD/CNY  ' + ctx.parsed.y.toFixed(4)
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 10,
+            maxRotation: 0,
+            color: '#9ca3af',
+            font: { size: 11 }
+          },
+          grid: { display: false }
+        },
+        y: {
+          position: 'right',
+          ticks: {
+            color: '#9ca3af',
+            font: { size: 11 },
+            callback: v => v.toFixed(3)
+          },
+          grid: { color: '#f3f4f6', lineWidth: 1 }
+        }
+      }
+    }
+  });
+}
+
+function sliceData(all, days) {
+  return days > 0 ? all.slice(-days) : all;
+}
+
+function updateChart(all, days) {
+  const data = sliceData(all, days);
+  chartInstance.data.labels   = data.map(d => d.date);
+  chartInstance.data.datasets[0].data = data.map(d => d.rate);
+  chartInstance.update('active');
+}
+
+// ────────────────────────────────────────────────
+// Range buttons
+// ────────────────────────────────────────────────
+function initRangeButtons(all) {
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateChart(all, parseInt(btn.dataset.days));
+    });
+  });
+}
+
+// ────────────────────────────────────────────────
+// 生成 CSV Blob 下载（保证文件名和内容正确）
+// ────────────────────────────────────────────────
+function setupDownload(all) {
+  const btn = document.getElementById('dlBtn');
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    const header = 'date,rate\n';
+    const body   = all.map(d => `${d.date},${d.rate}`).join('\n');
+    const blob   = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = `boc_usd_cny_${all[all.length-1].date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+// ────────────────────────────────────────────────
+// 入口
+// ────────────────────────────────────────────────
+(async () => {
+  try {
+    const all = await fetchData();
+    renderStats(all);
+    buildChart(all);
+    renderTable(all);
+    initRangeButtons(all);
+    setupDownload(all);
+    document.getElementById('updateTime').textContent =
+      '页面加载于 ' + new Date().toLocaleString('zh-CN');
+  } catch (err) {
+    console.error(err);
+    document.querySelector('.stats').innerHTML =
+      `<div class="error-box" style="grid-column:1/-1">
+        <div class="emoji">⚠️</div>
+        <div>数据加载失败，请稍后刷新重试</div>
+        <div style="font-size:11px;margin-top:6px;color:#9ca3af">${err.message}</div>
+      </div>`;
+    document.querySelector('.chart-card').innerHTML =
+      '<div class="error-box">图表加载失败</div>';
+  }
+})();
+</script>
+
+</body>
+</html>

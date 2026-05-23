@@ -1,0 +1,47 @@
+name: 每日中行汇率抓取
+
+on:
+  schedule:
+    # 北京时间 10:30 = UTC 02:30，仅工作日
+    - cron: '30 2 * * 1-5'
+  workflow_dispatch:  # 支持手动触发，方便测试
+
+permissions:
+  contents: write   # 必须有写权限才能提交CSV更新
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: |
+          pip install --quiet requests beautifulsoup4 pandas python-dotenv
+
+      - name: 运行爬虫
+        run: python main.py daily
+
+      - name: 提交并推送更新
+        run: |
+          git config --global user.name  'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data.csv
+          if git diff --staged --quiet; then
+            echo "今日数据已存在，无需更新"
+          else
+            RATE=$(python -c "import pandas as pd; df=pd.read_csv('data.csv'); print(df.iloc[-1]['rate'])")
+            git commit -m "📊 $(date -u +%Y-%m-%d) 美元现汇买入价: ${RATE}"
+            git push
+          fi
