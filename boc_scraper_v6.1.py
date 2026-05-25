@@ -23,12 +23,20 @@ import pandas as pd
 import ddddocr
 from bs4 import BeautifulSoup
 import os
+import os
 from dotenv import load_dotenv
 
 # ============================================================
-#  配置
+#  配置（支持环境变量覆盖）
 # ============================================================
-START_DATE  = date(2023, 1, 1)
+# 默认全量范围：2023-01-01 ~ 昨天
+DEFAULT_START = date(2023, 1, 1)
+# 环境变量 DAILY_MODE=true 时，只抓昨天一天
+if os.getenv("DAILY_MODE", "").lower() in ("true", "1", "yes"):
+    START_DATE = date.today() - timedelta(days=1)
+else:
+    START_DATE = DEFAULT_START
+END_DATE    = date.today() - timedelta(days=1)
 END_DATE    = date.today() - timedelta(days=1)  # 抓取到前一天的数据
 TARGET_HOUR = 10          # 优先抓每天 10:00 之后最早一条
 OUTPUT_FILE = "boc_usd_cny.csv"

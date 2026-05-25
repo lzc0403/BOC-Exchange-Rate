@@ -5,6 +5,15 @@ on:
     # 每天上午10:30执行
     - cron: '30 2 * * *'  # UTC时间，对应北京时间10:30
   workflow_dispatch:  # 支持手动触发
+    inputs:
+      mode:
+        description: '运行模式'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - backfill
 
 jobs:
   scrape-exchange-rates:
@@ -38,6 +47,7 @@ jobs:
         SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
         SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        DAILY_MODE: ${{ github.event.inputs.mode == 'daily' || github.event_name == 'schedule' }}
       run: |
         python boc_scraper_v6.1.py
 
