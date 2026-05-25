@@ -44,7 +44,7 @@
 
         /* Hero Section */
         .hero {
-            min-height: 70vh;
+            min-height: 50vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -952,7 +952,7 @@
     </footer>
 
     <!-- Chart.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <script>
         // Global data store
@@ -1253,11 +1253,13 @@
         }
 
         // Update data table
-        function updateTable(days) {
+        function updateTable(days, customRange) {
             const tbody = document.getElementById('dataTableBody');
             let data = [...allData].reverse();
 
-            if (days > 0) {
+            if (customRange) {
+                data = data.filter(d => d.date >= customRange.start && d.date <= customRange.end);
+            } else if (days > 0) {
                 data = data.slice(0, days);
             }
 
@@ -1290,9 +1292,16 @@
                 this.classList.add('active');
                 const days = parseInt(this.dataset.days);
                 initChart(days);
+                updateTable(days);
+                updateStats();
                 // Clear date inputs when preset clicked
                 document.getElementById('startDate').value = '';
                 document.getElementById('endDate').value = '';
+                // Update table title
+                const titleEl = document.querySelector('.table-title');
+                if (titleEl) {
+                    titleEl.textContent = days > 0 ? `最近${days}天数据` : '全部数据';
+                }
             });
         });
 
@@ -1325,6 +1334,9 @@
             // Deactivate preset buttons
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             initChart(0, { start: startVal, end: endVal });
+            updateTable(0, { start: startVal, end: endVal });
+            const titleEl = document.querySelector('.table-title');
+            if (titleEl) titleEl.textContent = `${startVal} ~ ${endVal}`;
         }
 
         document.getElementById('dateQueryBtn').addEventListener('click', handleDateQuery);
