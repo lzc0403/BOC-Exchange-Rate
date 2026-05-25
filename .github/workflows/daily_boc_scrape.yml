@@ -15,6 +15,9 @@ on:
           - daily
           - backfill
 
+permissions:
+  contents: write
+
 jobs:
   scrape-exchange-rates:
     runs-on: ubuntu-latest
@@ -74,8 +77,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add boc_usd_cny.csv site/boc_usd_cny.csv
-        git diff --staged --quiet || git commit -m "更新汇率数据 $(date +'%Y-%m-%d')"
-        git push
+        git diff --staged --quiet && echo "无数据变更，跳过提交" || (git commit -m "更新汇率数据 $(date +'%Y-%m-%d')" && git push)
 
     - name: Upload results
       uses: actions/upload-artifact@v4
