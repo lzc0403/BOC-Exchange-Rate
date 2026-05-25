@@ -41,6 +41,19 @@ jobs:
       run: |
         python boc_scraper_v6.1.py
 
+    - name: Send daily emails to subscribers
+      env:
+        SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+        SMTP_PORT: 587
+        SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+        RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        SUBSCRIBER_API_URL: ${{ secrets.SUBSCRIBER_API_URL }}
+        SUBSCRIBER_API_KEY: ${{ secrets.SUBSCRIBER_API_KEY }}
+        UNSUBSCRIBE_BASE_URL: "https://lzc0403.github.io/BOC-Exchange-Rate/"
+      run: |
+        python send_daily_emails.py
+
     - name: Sync data to site directory
       run: |
         cp boc_usd_cny.csv site/boc_usd_cny.csv

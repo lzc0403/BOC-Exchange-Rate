@@ -1,0 +1,17 @@
+name = "boc-subscription-api"
+main = "worker.js"
+compatibility_date = "2026-05-01"
+
+# KV namespace for storing subscriber emails
+[[kv_namespaces]]
+binding = "BOC_SUBSCRIBERS"
+id = ""  # 请替换为你的KV namespace ID
+
+# Variables
+[vars]
+SUBSCRIBER_API_KEY = ""  # 请设置一个随机字符串作为API密钥
+
+# Routes
+routes = [
+  { pattern = "api.monica-rate.com", custom_domain = true }
+]

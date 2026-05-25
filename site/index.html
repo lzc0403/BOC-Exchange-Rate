@@ -515,6 +515,163 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* ============================================================
+           Subscription Section
+           ============================================================ */
+        .subscription {
+            margin-top: 40px;
+            padding: 60px;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-soft);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .subscription::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-warm-light), var(--accent-warm), var(--accent-warm-light));
+        }
+
+        .subscription-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 20px;
+            color: var(--accent-warm);
+        }
+
+        .subscription-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .subscription-desc {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+
+        .subscription-form {
+            display: flex;
+            max-width: 480px;
+            margin: 0 auto;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .subscription-input {
+            flex: 1;
+            min-width: 240px;
+            padding: 14px 20px;
+            border: 2px solid var(--border-light);
+            border-radius: 8px;
+            font-family: 'Source Sans 3', 'Noto Sans SC', sans-serif;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            transition: var(--transition);
+            outline: none;
+        }
+
+        .subscription-input:focus {
+            border-color: var(--accent-warm);
+            box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.15);
+        }
+
+        .subscription-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .subscription-btn {
+            padding: 14px 32px;
+            background: var(--accent-warm);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .subscription-btn:hover {
+            background: #B8865A;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(196, 149, 106, 0.3);
+        }
+
+        .subscription-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .subscription-message {
+            margin-top: 16px;
+            font-size: 0.9rem;
+            min-height: 24px;
+            transition: var(--transition);
+        }
+
+        .subscription-message.success {
+            color: var(--accent-green);
+        }
+
+        .subscription-message.error {
+            color: var(--accent-red);
+        }
+
+        .subscription-privacy {
+            margin-top: 16px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .subscription-privacy a {
+            color: var(--accent-warm);
+            text-decoration: none;
+        }
+
+        .subscription-privacy a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .subscription {
+                padding: 40px 24px;
+            }
+            .subscription-title {
+                font-size: 1.3rem;
+            }
+            .subscription-form {
+                flex-direction: column;
+            }
+            .subscription-input {
+                min-width: auto;
+            }
+        }
+
+        /* Footer enhancements */
+        .footer-links-group {
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -641,6 +798,34 @@
                     </table>
                 </div>
             </div>
+        </section>
+
+        <!-- Email Subscription Section -->
+        <section class="section subscription">
+            <div class="subscription-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                    <line x1="10" y1="15" x2="14" y2="15"/>
+                </svg>
+            </div>
+            <h3 class="subscription-title">订阅每日汇率推送</h3>
+            <p class="subscription-desc">
+                订阅后，每日抓取完成后将自动发送最新汇率数据到您的邮箱，<br>不再错过任何汇率波动。
+            </p>
+            <form class="subscription-form" id="subscribeForm">
+                <input type="email" class="subscription-input" id="subscribeEmail"
+                       placeholder="输入您的邮箱地址" required>
+                <button type="submit" class="subscription-btn" id="subscribeBtn">
+                    立即订阅
+                </button>
+            </form>
+            <div class="subscription-message" id="subscribeMessage"></div>
+            <p class="subscription-privacy">
+                无需担心垃圾邮件，您可以随时<a href="#" id="unsubscribeLink">退订</a>。
+                数据仅供推送使用，不会泄露给第三方。
+            </p>
         </section>
     </main>
 
@@ -952,6 +1137,90 @@
 
         // Load data on page load
         document.addEventListener('DOMContentLoaded', loadData);
+
+        // ============================================================
+        //  Email Subscription
+        // ============================================================
+
+        // Configuration - change API_URL after deploying your Cloudflare Worker
+        const SUBSCRIBER_API = {
+            URL: 'https://boc-subscription-api.lg111481.workers.dev',  // 替换为你的Worker地址
+            TIMEOUT: 10000,
+        };
+
+        async function handleSubscribe(event) {
+            event.preventDefault();
+
+            const emailInput = document.getElementById('subscribeEmail');
+            const messageEl = document.getElementById('subscribeMessage');
+            const btn = document.getElementById('subscribeBtn');
+            const email = emailInput.value.trim().toLowerCase();
+
+            // Basic validation
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                messageEl.className = 'subscription-message error';
+                messageEl.textContent = '请输入有效的邮箱地址';
+                return;
+            }
+
+            // Disable form
+            btn.disabled = true;
+            btn.textContent = '订阅中...';
+            messageEl.className = 'subscription-message';
+            messageEl.textContent = '';
+
+            try {
+                const response = await fetch(SUBSCRIBER_API.URL + '/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                    signal: AbortSignal.timeout(SUBSCRIBER_API.TIMEOUT),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    messageEl.className = 'subscription-message success';
+                    messageEl.textContent = '✅ ' + data.message;
+                    emailInput.value = '';
+                } else {
+                    messageEl.className = 'subscription-message error';
+                    messageEl.textContent = data.error || '订阅失败，请稍后重试';
+                }
+            } catch (error) {
+                if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                    messageEl.className = 'subscription-message error';
+                    messageEl.textContent = '请求超时，请检查网络连接';
+                } else if (SUBSCRIBER_API.URL.includes('your-worker')) {
+                    messageEl.className = 'subscription-message error';
+                    messageEl.textContent = '订阅服务尚未配置，请联系管理员';
+                } else {
+                    messageEl.className = 'subscription-message error';
+                    messageEl.textContent = '网络错误，请稍后重试';
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '立即订阅';
+            }
+        }
+
+        // Handle unsubscribe link
+        function handleUnsubscribe() {
+            const email = prompt('请输入要退订的邮箱地址：');
+            if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                const url = SUBSCRIBER_API.URL + '/unsubscribe?email=' + encodeURIComponent(email);
+                window.open(url, '_blank');
+            } else if (email) {
+                alert('请输入有效的邮箱地址');
+            }
+        }
+
+        // Bind events
+        document.getElementById('subscribeForm').addEventListener('submit', handleSubscribe);
+        document.getElementById('unsubscribeLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            handleUnsubscribe();
+        });
     </script>
 </body>
 </html>
