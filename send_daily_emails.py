@@ -73,7 +73,7 @@ def get_recipient_from_env() -> list[str]:
 
 
 def build_html_email(latest_data: list[dict]) -> str:
-    """构建精美的 HTML 邮件内容"""
+    """构建精美的 HTML 邮件内容 - 杂志风格"""
     if not latest_data:
         return "<p>暂无最新数据</p>"
 
@@ -82,80 +82,137 @@ def build_html_email(latest_data: list[dict]) -> str:
     def fmt(v):
         return f"{v:.2f}" if v else "-"
 
+    # 趋势箭头
+    def trend(v, prev_v):
+        if prev_v is None or not v or not prev_v:
+            return ""
+        diff = v - prev_v
+        if diff > 0:
+            return f'<span style="color:#E74C3C;font-size:13px;">↑ {diff:.2f}</span>'
+        elif diff < 0:
+            return f'<span style="color:#27AE60;font-size:13px;">↓ {abs(diff):.2f}</span>'
+        return '<span style="color:#999;font-size:13px;">— 0.00</span>'
+
+    # 对比前一天
+    prev = latest_data[-2] if len(latest_data) >= 2 else None
+    buy_trend = trend(latest.get('现汇买入价'), prev.get('现汇买入价') if prev else None)
+    sell_trend = trend(latest.get('现汇卖出价'), prev.get('现汇卖出价') if prev else None)
+    mid_trend = trend(latest.get('中行折算价'), prev.get('中行折算价') if prev else None)
+
     rows = ""
-    for d in latest_data[-10:]:  # 最近10条
+    for d in latest_data[-10:]:
         rows += f"""
         <tr>
-            <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">{d['查询日期']}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:500;">{fmt(d.get('现汇买入价'))}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:500;">{fmt(d.get('现汇卖出价'))}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:500;color:#C4956A;">{fmt(d.get('中行折算价'))}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;color:#555;">{d['查询日期']}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:600;font-family:'Menlo',monospace;">{fmt(d.get('现汇买入价'))}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:600;font-family:'Menlo',monospace;">{fmt(d.get('现汇卖出价'))}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700;font-family:'Menlo',monospace;color:#C4956A;">{fmt(d.get('中行折算价'))}</td>
         </tr>"""
 
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"></head>
-    <body style="font-family:-apple-system,'Noto Sans SC',sans-serif;background:#f5f3ef;padding:40px 20px;">
-        <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.06);">
-            <!-- Header -->
-            <div style="background:linear-gradient(135deg,#C4956A,#B8865A);padding:32px;text-align:center;">
-                <h1 style="color:#fff;margin:0 0 8px;font-size:22px;font-weight:600;">Monica的经验分享</h1>
-                <p style="color:rgba(255,255,255,0.85);margin:0;font-size:14px;">每日外汇牌价速递</p>
-            </div>
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0eee9;font-family:'Helvetica Neue',Arial,'Noto Sans SC','Microsoft YaHei',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0eee9;">
+<tr><td align="center" style="padding:30px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 30px rgba(0,0,0,0.06);">
 
-            <!-- Today's rates -->
-            <div style="padding:24px 24px 0;">
-                <p style="color:#666;font-size:13px;margin:0 0 4px;">{latest['查询日期']} 最新牌价</p>
-                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
-                    <div style="flex:1;min-width:100px;padding:16px;background:#fafaf8;border-radius:8px;text-align:center;">
-                        <div style="font-size:11px;color:#999;margin-bottom:4px;">现汇买入</div>
-                        <div style="font-size:24px;font-weight:600;color:#27AE60;">{fmt(latest.get('现汇买入价'))}</div>
-                    </div>
-                    <div style="flex:1;min-width:100px;padding:16px;background:#fafaf8;border-radius:8px;text-align:center;">
-                        <div style="font-size:11px;color:#999;margin-bottom:4px;">现汇卖出</div>
-                        <div style="font-size:24px;font-weight:600;color:#E74C3C;">{fmt(latest.get('现汇卖出价'))}</div>
-                    </div>
-                    <div style="flex:1;min-width:100px;padding:16px;background:#fafaf8;border-radius:8px;text-align:center;">
-                        <div style="font-size:11px;color:#999;margin-bottom:4px;">折算价</div>
-                        <div style="font-size:24px;font-weight:600;color:#C4956A;">{fmt(latest.get('中行折算价'))}</div>
-                    </div>
-                </div>
-            </div>
+<!-- ===== Header ===== -->
+<tr>
+<td style="background:linear-gradient(135deg,#C4956A 0%,#B8865A 50%,#A6784A 100%);padding:36px 32px 28px;text-align:center;">
+    <h1 style="color:#fff;margin:0 0 4px;font-size:22px;font-weight:700;letter-spacing:1px;">Monica的经验分享</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:0;font-size:13px;letter-spacing:2px;">每 日 外 汇 牌 价 速 递</p>
+</td>
+</tr>
 
-            <!-- Data table -->
-            <div style="padding:0 24px;">
-                <h3 style="font-size:15px;color:#333;margin:0 0 12px;">最近汇率数据</h3>
-                <table style="width:100%;border-collapse:collapse;">
-                    <thead>
-                        <tr style="background:#f5f3ef;">
-                            <th style="padding:10px 12px;text-align:left;font-size:12px;color:#666;">日期</th>
-                            <th style="padding:10px 12px;text-align:right;font-size:12px;color:#666;">买入价</th>
-                            <th style="padding:10px 12px;text-align:right;font-size:12px;color:#666;">卖出价</th>
-                            <th style="padding:10px 12px;text-align:right;font-size:12px;color:#666;">折算价</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows}
-                    </tbody>
-                </table>
-            </div>
+<!-- ===== Hero Rate ===== -->
+<tr>
+<td style="padding:28px 32px 0;text-align:center;">
+    <p style="font-size:12px;color:#999;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px;">{latest['查询日期']} 最新牌价</p>
+    <div style="font-size:40px;font-weight:700;color:#2D3436;font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:-1px;margin:4px 0 8px;">
+        {fmt(latest.get('中行折算价'))}
+        <span style="font-size:14px;font-weight:400;color:#999;letter-spacing:0;"> CNY</span>
+    </div>
+    <p style="font-size:12px;color:#999;margin:0;">美元兑人民币 · 中行折算价</p>
+</td>
+</tr>
 
-            <!-- Footer -->
-            <div style="padding:24px;border-top:1px solid #eee;margin-top:20px;">
-                <p style="font-size:12px;color:#999;margin:0;line-height:1.6;">
-                    数据来源：<a href="https://www.bankofchina.com" style="color:#C4956A;text-decoration:none;">中国银行外汇牌价</a><br>
-                    自动更新：每日北京时间 10:30
-                </p>
-                <p style="font-size:12px;color:#ccc;margin:12px 0 0;">
-                    <a href="{os.getenv('UNSUBSCRIBE_BASE_URL', '#')}" style="color:#999;text-decoration:none;">退订</a> ·
-                    本邮件由系统自动发送，请勿回复
-                </p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+<!-- ===== Three Stats ===== -->
+<tr>
+<td style="padding:20px 32px 8px;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="padding:0 8px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
+<tr><td style="padding:16px;text-align:center;">
+    <p style="font-size:11px;color:#999;margin:0 0 6px;">现汇买入</p>
+    <p style="font-size:22px;font-weight:700;color:#27AE60;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('现汇买入价'))}</p>
+    <p style="font-size:11px;margin:4px 0 0;">{buy_trend}</p>
+</td></tr>
+</table>
+</td>
+<td width="33%" style="padding:0 8px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
+<tr><td style="padding:16px;text-align:center;">
+    <p style="font-size:11px;color:#999;margin:0 0 6px;">现汇卖出</p>
+    <p style="font-size:22px;font-weight:700;color:#E74C3C;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('现汇卖出价'))}</p>
+    <p style="font-size:11px;margin:4px 0 0;">{sell_trend}</p>
+</td></tr>
+</table>
+</td>
+<td width="33%" style="padding:0 8px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
+<tr><td style="padding:16px;text-align:center;">
+    <p style="font-size:11px;color:#999;margin:0 0 6px;">折算价</p>
+    <p style="font-size:22px;font-weight:700;color:#C4956A;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('中行折算价'))}</p>
+    <p style="font-size:11px;margin:4px 0 0;">{mid_trend}</p>
+</td></tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- ===== Table ===== -->
+<tr>
+<td style="padding:24px 32px 0;">
+    <h3 style="font-size:14px;color:#2D3436;margin:0 0 14px;font-weight:600;">最近汇率数据 <span style="font-size:12px;color:#999;font-weight:400;">（近10期）</span></h3>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:8px;overflow:hidden;">
+        <thead>
+            <tr style="background:#f5f3ef;">
+                <th style="padding:10px 14px;text-align:left;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">日期</th>
+                <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">买入价</th>
+                <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">卖出价</th>
+                <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">折算价</th>
+            </tr>
+        </thead>
+        <tbody>
+            {rows}
+        </tbody>
+    </table>
+</td>
+</tr>
+
+<!-- ===== Footer ===== -->
+<tr>
+<td style="padding:28px 32px;border-top:1px solid #f0eee9;margin-top:24px;">
+    <p style="font-size:12px;color:#aaa;margin:0;line-height:1.8;">
+        📊 数据来源：<a href="https://www.bankofchina.com" style="color:#C4956A;text-decoration:none;">中国银行外汇牌价</a><br>
+        ⏰ 自动更新：每日北京时间 10:30 · 本邮件由系统自动发送
+    </p>
+    <p style="font-size:11px;color:#ccc;margin:16px 0 0;padding-top:16px;border-top:1px solid #f5f5f5;">
+        <a href="{os.getenv('UNSUBSCRIBE_BASE_URL', '#')}" style="color:#bbb;text-decoration:none;">退订邮件</a>
+        <span style="color:#ddd;margin:0 8px;">·</span>
+        <a href="https://lzc0403.github.io/BOC-Exchange-Rate/" style="color:#bbb;text-decoration:none;">访问网站</a>
+    </p>
+</td>
+</tr>
+
+</table>
+</td></tr></table>
+</body>
+</html>"""
     return html
 
 
