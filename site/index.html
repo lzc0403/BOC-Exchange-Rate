@@ -296,6 +296,66 @@
             height: 400px;
         }
 
+        /* Date Range Picker */
+        .date-range {
+            margin-bottom: 20px;
+            padding: 12px 0;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .date-range-inner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .date-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .date-input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            font-family: 'Source Sans 3', 'Noto Sans SC', sans-serif;
+            background: var(--bg-primary);
+            outline: none;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .date-input:focus {
+            border-color: var(--accent-warm);
+            box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.15);
+        }
+
+        .date-sep {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .date-query-btn {
+            padding: 8px 20px;
+            background: var(--accent-warm);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: 'Noto Sans SC', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .date-query-btn:hover {
+            background: #B8865A;
+        }
+
         /* Data Table */
         .table-container {
             background: var(--bg-card);
@@ -728,8 +788,13 @@
                     <div class="stat-change" id="midChange">加载中...</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">最近更新</div>
+                    <div class="stat-label">数据日期</div>
                     <div class="stat-value" id="lastUpdate" style="font-size: 1.25rem;">-</div>
+                    <div class="stat-change" style="color: var(--text-muted);">可获取的最新数据</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">系统更新</div>
+                    <div class="stat-value" id="systemUpdate" style="font-size: 1.25rem;">-</div>
                     <div class="stat-change" style="color: var(--text-muted);">每日10:30自动更新</div>
                 </div>
             </div>
@@ -752,6 +817,15 @@
                         <button class="time-btn" data-days="180">近6月</button>
                         <button class="time-btn" data-days="365">近1年</button>
                         <button class="time-btn" data-days="0">全部</button>
+                    </div>
+                </div>
+                <div class="date-range">
+                    <div class="date-range-inner">
+                        <label class="date-label">自定义范围：</label>
+                        <input type="date" class="date-input" id="startDate">
+                        <span class="date-sep">至</span>
+                        <input type="date" class="date-input" id="endDate">
+                        <button class="date-query-btn" id="dateQueryBtn">查询</button>
                     </div>
                 </div>
                 <div id="chart"></div>
@@ -858,8 +932,28 @@
         // Load and parse CSV data
         async function loadData() {
             try {
-                const response = await fetch('boc_usd_cny.csv');
-                const text = await response.text();
+                const csvUrls = [
+                    'boc_usd_cny.csv',
+                    './boc_usd_cny.csv',
+                ];
+                
+                let text = null;
+                for (const url of csvUrls) {
+                    try {
+                        const resp = await fetch(url);
+                        if (resp.ok) {
+                            text = await resp.text();
+                            console.log('CSV loaded from:', url);
+                            break;
+                        }
+                    } catch (e) {
+                        console.warn('Failed to load from:', url, e);
+                    }
+                }
+                
+                if (!text) {
+                    throw new Error('所有CSV路径均加载失败');
+                }
                 const lines = text.trim().split('\n');
                 const headers = lines[0].split(',');
 
@@ -880,6 +974,13 @@
                 allData.sort((a, b) => a.date.localeCompare(b.date));
 
                 updateStats();
+                // Set date input range based on available data
+                if (allData.length > 0) {
+                    document.getElementById('startDate').min = allData[0].date;
+                    document.getElementById('startDate').max = allData[allData.length - 1].date;
+                    document.getElementById('endDate').min = allData[0].date;
+                    document.getElementById('endDate').max = allData[allData.length - 1].date;
+                }
                 initChart(90);
                 updateTable(30);
             } catch (error) {
@@ -951,22 +1052,48 @@
                 `;
             }
 
-            // Last update
+            // Last data date
             const publishDate = latest.publishTime.replace(/\//g, '-').split(' ');
             document.getElementById('lastUpdate').textContent = publishDate[0];
+            
+            // System update date (today)
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            document.getElementById('systemUpdate').textContent = `${y}-${m}-${d}`;
         }
 
-        // Initialize chart
-        function initChart(days) {
+        // Initialize chart with optional custom date range
+        function initChart(days, customRange) {
             const ctx = document.getElementById('chart');
             if (!ctx) return;
 
             let data = allData;
-            if (days > 0) {
+            
+            if (customRange) {
+                // Custom date range
+                data = allData.filter(d => d.date >= customRange.start && d.date <= customRange.end);
+            } else if (days > 0) {
+                // Preset range
                 const cutoff = new Date();
                 cutoff.setDate(cutoff.getDate() - days);
                 const cutoffStr = cutoff.toISOString().split('T')[0];
                 data = allData.filter(d => d.date >= cutoffStr);
+            }
+
+            if (data.length === 0) {
+                if (chart) chart.destroy();
+                const canvas = ctx;
+                const parent = canvas.parentNode;
+                const placeholder = document.createElement('div');
+                placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:400px;color:var(--text-muted);font-size:1rem;';
+                placeholder.textContent = '所选时间段无数据';
+                if (chart) {
+                    parent.replaceChild(placeholder, canvas);
+                    chart = null;
+                }
+                return;
             }
 
             const labels = data.map(d => d.date);
@@ -1132,8 +1259,39 @@
                 this.classList.add('active');
                 const days = parseInt(this.dataset.days);
                 initChart(days);
+                // Clear date inputs when preset clicked
+                document.getElementById('startDate').value = '';
+                document.getElementById('endDate').value = '';
             });
         });
+
+        // Custom date query
+        function handleDateQuery() {
+            const startVal = document.getElementById('startDate').value;
+            const endVal = document.getElementById('endDate').value;
+            
+            if (!startVal || !endVal) {
+                // If inputs empty, reset to active preset or all
+                const active = document.querySelector('.time-btn.active');
+                if (active) {
+                    active.click();
+                }
+                return;
+            }
+            
+            if (startVal > endVal) {
+                alert('开始日期不能晚于结束日期');
+                return;
+            }
+            
+            // Deactivate preset buttons
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            initChart(0, { start: startVal, end: endVal });
+        }
+
+        document.getElementById('dateQueryBtn').addEventListener('click', handleDateQuery);
+        document.getElementById('startDate').addEventListener('keydown', e => { if (e.key === 'Enter') handleDateQuery(); });
+        document.getElementById('endDate').addEventListener('keydown', e => { if (e.key === 'Enter') handleDateQuery(); });
 
         // Load data on page load
         document.addEventListener('DOMContentLoaded', loadData);

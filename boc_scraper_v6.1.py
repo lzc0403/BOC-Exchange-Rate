@@ -31,13 +31,14 @@ from dotenv import load_dotenv
 # ============================================================
 # 默认全量范围：2023-01-01 ~ 昨天
 DEFAULT_START = date(2023, 1, 1)
-# 环境变量 DAILY_MODE=true 时，只抓昨天一天
-if os.getenv("DAILY_MODE", "").lower() in ("true", "1", "yes"):
-    START_DATE = date.today() - timedelta(days=1)
+# 环境变量 DAILY_MODE=true 时，尝试抓取当天数据
+is_daily = os.getenv("DAILY_MODE", "").lower() in ("true", "1", "yes")
+if is_daily:
+    START_DATE = date.today()
+    END_DATE   = date.today()
 else:
     START_DATE = DEFAULT_START
-END_DATE    = date.today() - timedelta(days=1)
-END_DATE    = date.today() - timedelta(days=1)  # 抓取到前一天的数据
+    END_DATE   = date.today() - timedelta(days=1)
 TARGET_HOUR = 10          # 优先抓每天 10:00 之后最早一条
 OUTPUT_FILE = "boc_usd_cny.csv"
 
@@ -333,7 +334,8 @@ def main():
     all_dates = [START_DATE + timedelta(days=i) for i in range((END_DATE - START_DATE).days + 1)]
     pending = [d for d in all_dates if d.strftime("%Y-%m-%d") not in done]
 
-    log.info(f"总范围: {START_DATE} → {END_DATE} | 已有: {len(done)} 天 | 待补抓: {len(pending)} 天")
+    mode_label = "每日模式" if is_daily else "补全模式"
+    log.info(f"[{mode_label}] 总范围: {START_DATE} → {END_DATE} | 已有: {len(done)} 天 | 待补抓: {len(pending)} 天")
 
     if not pending:
         log.info("== 没有需要补抓的日期，程序退出 ==")
