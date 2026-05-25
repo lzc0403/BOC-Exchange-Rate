@@ -291,9 +291,13 @@
             border-color: var(--accent-deep);
         }
 
-        #chart {
+        .chart-wrap {
+            position: relative;
             width: 100%;
-            height: 400px;
+        }
+
+        #chart {
+            width: 100% !important;
         }
 
         /* Date Range Picker */
@@ -563,8 +567,9 @@
                 padding: 20px;
             }
 
-            #chart {
-                height: 300px;
+            .chart-wrap {
+                position: relative;
+                width: 100%;
             }
 
             .table-header {
@@ -858,7 +863,7 @@
                         <button class="date-query-btn" id="dateQueryBtn">查询</button>
                     </div>
                 </div>
-                <canvas id="chart"></canvas>
+                <div class="chart-wrap"><canvas id="chart"></canvas></div>
             </div>
         </section>
 
@@ -1179,7 +1184,8 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2.5,
                     interaction: {
                         intersect: false,
                         mode: 'index'
