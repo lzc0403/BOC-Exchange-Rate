@@ -73,9 +73,12 @@ jobs:
         echo "数据已同步到site目录"
 
     - name: Commit and push changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
         git add boc_usd_cny.csv site/boc_usd_cny.csv
         git diff --staged --quiet && echo "无数据变更，跳过提交" || (git commit -m "更新汇率数据 $(date +'%Y-%m-%d')" && git push)
 
