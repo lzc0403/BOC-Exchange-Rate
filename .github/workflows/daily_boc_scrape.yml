@@ -17,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   scrape-exchange-rates:
@@ -79,7 +81,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-        git add boc_usd_cny.csv site/boc_usd_cny.csv
+        git add boc_usd_cny.csv site/
         git diff --staged --quiet && echo "无数据变更，跳过提交" || (git commit -m "更新汇率数据 $(date +'%Y-%m-%d')" && git push)
 
     - name: Upload results
@@ -90,3 +92,22 @@ jobs:
         path: |
           boc_usd_cny.csv
           boc.log
+
+    - name: Upload site as Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: site/
+
+  deploy-pages:
+    needs: scrape-exchange-rates
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
