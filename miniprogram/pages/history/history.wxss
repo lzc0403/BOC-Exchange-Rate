@@ -2,33 +2,33 @@
 .page {
   min-height: 100vh;
   background: #FAFAF8;
-  padding: 30rpx;
+  padding: 24rpx;
 }
 
-.table-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24rpx;
+  margin-bottom: 20rpx;
 }
 
-.table-title {
+.page-title {
   font-size: 32rpx;
   font-weight: 600;
   color: #2D3436;
 }
 
 .download-btn {
-  padding: 12rpx 30rpx;
+  padding: 10rpx 28rpx;
   background: #2D3436;
   color: #fff;
   border-radius: 12rpx;
-  font-size: 26rpx;
+  font-size: 24rpx;
   line-height: 1.2;
 }
 
 .table-scroll {
-  max-height: calc(100vh - 260rpx);
+  max-height: calc(100vh - 220rpx);
 }
 
 .table {
@@ -52,24 +52,28 @@
 .table-row:last-child { border-bottom: none; }
 
 .cell {
-  padding: 22rpx 14rpx;
-  font-size: 26rpx;
+  padding: 18rpx 10rpx;
+  font-size: 22rpx;
   color: #555;
-  box-sizing: border-box;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  text-align: right;
 }
 
-.col-date { width: 24%; }
-.col-buy { width: 19%; text-align: right; }
-.col-sell { width: 19%; text-align: right; }
-.col-mid { width: 19%; text-align: right; }
-.col-time { width: 19%; text-align: right; }
+.c1 { width: 22%; text-align: left; }
+.c2 { width: 16%; }
+.c3 { width: 16%; }
+.c4 { width: 16%; }
+.c5 { width: 16%; }
+.c6 { width: 14%; color: #C4956A; font-weight: 600; }
 
 .header .cell {
-  font-size: 22rpx;
+  font-size: 20rpx;
   color: #888;
   font-weight: 500;
+  text-align: center;
 }
 
-.rate { font-family: 'Menlo', monospace; font-weight: 600; }
-.mid { color: #C4956A; }
+.header .c1 { text-align: left; }

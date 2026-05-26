@@ -1,5 +1,6 @@
 <!-- pages/index/index.wxml -->
 <view class="page">
+  <!-- Hero + Stats -->
   <view class="hero">
     <text class="hero-subtitle">中国银行外汇牌价</text>
     <text class="hero-title">{{latestRate}}<text class="hero-unit"> CNY</text></text>
@@ -27,6 +28,35 @@
       <text class="stat-label">累计数据</text>
       <text class="stat-value">{{totalDays}}</text>
       <text class="stat-trend" style="color:#999;">{{dataRange}}</text>
+    </view>
+  </view>
+
+  <!-- Chart Section -->
+  <view class="chart-section">
+    <view class="chart-header">
+      <text class="chart-title">汇率走势</text>
+      <view class="chart-filter">
+        <view class="filter-btn {{activeDays === 7 ? 'active' : ''}}" data-days="7" bindtap="onFilter">近7天</view>
+        <view class="filter-btn {{activeDays === 30 ? 'active' : ''}}" data-days="30" bindtap="onFilter">近30天</view>
+      </view>
+    </view>
+    <view class="chart-box">
+      <canvas id="lineCanvas" type="2d" style="width:100%;height:100%;"></canvas>
+      <view class="empty-tip" wx:if="{{empty}}">所选时间段无数据</view>
+    </view>
+    <view class="chart-legend">
+      <view class="legend-item">
+        <view class="legend-line" style="background:#C4956A;"></view>
+        <text>折算价</text>
+      </view>
+      <view class="legend-item">
+        <view class="legend-line dashed" style="background:#27AE60;"></view>
+        <text>买入价</text>
+      </view>
+      <view class="legend-item">
+        <view class="legend-line dashed" style="background:#E74C3C;"></view>
+        <text>卖出价</text>
+      </view>
     </view>
   </view>
 </view>

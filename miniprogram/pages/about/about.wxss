@@ -52,9 +52,7 @@
   line-height: 1.4;
 }
 
-.subscribe-btn[disabled] {
-  opacity: 0.5;
-}
+.subscribe-btn[disabled] { opacity: 0.5; }
 
 .subscribe-msg {
   font-size: 24rpx;
@@ -75,29 +73,27 @@
 
 .info-row:last-child { border-bottom: none; }
 
-.info-label {
-  font-size: 26rpx;
-  color: #6B6B6B;
+.info-label { font-size: 26rpx; color: #6B6B6B; }
+.info-value { font-size: 26rpx; font-weight: 600; color: #2D3436; }
+
+.links-card {
+  padding: 0;
+  overflow: hidden;
 }
 
-.info-value {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #2D3436;
-}
-
-.links {
-  text-align: center;
-  margin: 40rpx 0;
-}
-
-.link {
-  display: block;
-  font-size: 24rpx;
+.site-link {
+  width: 100%;
+  padding: 32rpx;
+  background: #fff;
   color: #C4956A;
-  margin-bottom: 12rpx;
-  text-decoration: underline;
+  font-size: 28rpx;
+  font-weight: 500;
+  text-align: center;
+  border: none;
+  line-height: 1;
 }
+
+.link-hover { background: #FAF5F0; }
 
 .footer-text {
   text-align: center;

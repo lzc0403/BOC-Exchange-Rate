@@ -1,7 +1,6 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/chart/chart",
     "pages/history/history",
     "pages/about/about"
   ],
@@ -22,11 +21,6 @@
         "pagePath": "pages/index/index",
         "text": "牌价",
         "iconPath": "images/tab-icons/rate.png"
-      },
-      {
-        "pagePath": "pages/chart/chart",
-        "text": "走势",
-        "iconPath": "images/tab-icons/chart.png"
       },
       {
         "pagePath": "pages/history/history",

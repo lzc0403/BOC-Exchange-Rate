@@ -30,10 +30,7 @@ Page({
   onSubscribe() {
     const email = this.data.email.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      this.setData({
-        subMsg: '请输入有效的邮箱地址',
-        subMsgClass: 'error'
-      });
+      this.setData({ subMsg: '请输入有效的邮箱地址', subMsgClass: 'error' });
       return;
     }
 
@@ -47,28 +44,20 @@ Page({
           email: ''
         });
       } else {
-        this.setData({
-          subMsg: res.error || '订阅失败，请稍后重试',
-          subMsgClass: 'error'
-        });
+        this.setData({ subMsg: res.error || '订阅失败', subMsgClass: 'error' });
       }
     }).catch(() => {
       wx.hideLoading();
-      this.setData({
-        subMsg: '网络错误，请稍后重试',
-        subMsgClass: 'error'
-      });
+      this.setData({ subMsg: '网络错误，请稍后重试', subMsgClass: 'error' });
     });
   },
 
   onOpenSite() {
     wx.setClipboardData({
       data: 'https://lzc0403.github.io/BOC-Exchange-Rate/',
-      success: () => wx.showToast({ title: '链接已复制，请在浏览器打开' })
+      success: () => {
+        wx.showToast({ title: '链接已复制，请在浏览器中打开', icon: 'none' });
+      }
     });
-  },
-
-  onCopyLink() {
-    wx.setClipboardData({ data: 'https://lzc0403.github.io/BOC-Exchange-Rate/' });
   }
 });

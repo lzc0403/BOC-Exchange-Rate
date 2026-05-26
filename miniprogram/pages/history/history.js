@@ -21,18 +21,18 @@ Page({
       list: recent.map(d => ({
         date: d.date,
         buyRate: d.buyRate.toFixed(2),
+        cashBuyRate: d.cashBuyRate.toFixed(2),
         sellRate: d.sellRate.toFixed(2),
-        midRate: d.midRate.toFixed(2),
-        publishTime: d.publishTime
+        cashSellRate: d.cashSellRate.toFixed(2),
+        midRate: d.midRate.toFixed(2)
       }))
     });
   },
 
   onDownload() {
-    wx.showToast({ title: '请在浏览器打开网站下载', icon: 'none' });
     wx.setClipboardData({
       data: 'https://lzc0403.github.io/BOC-Exchange-Rate/',
-      success: () => wx.showToast({ title: '网站链接已复制', icon: 'none' })
+      success: () => wx.showToast({ title: '网站链接已复制到剪贴板', icon: 'none' })
     });
   }
 });
