@@ -5,6 +5,12 @@ Page({
   data: {
     activeDays: 90,
     empty: false,
+    isPhone: false,
+  },
+
+  onLoad() {
+    const sys = wx.getSystemInfoSync();
+    this.setData({ isPhone: sys.windowWidth < 400 });
   },
 
   onShow() {
@@ -54,7 +60,8 @@ Page({
   },
 
   _renderChart(ctx, data, w, h) {
-    const pad = { top: 30, right: 30, bottom: 45, left: 60 };
+    const isPhone = this.data.isPhone;
+    const pad = { top: 30, right: isPhone ? 20 : 30, bottom: 45, left: isPhone ? 50 : 60 };
     const chartW = w - pad.left - pad.right;
     const chartH = h - pad.top - pad.bottom;
 
@@ -95,15 +102,27 @@ Page({
     for (let i = 0; i <= 4; i++) {
       const y = pad.top + (chartH / 4) * i;
       const val = yMax - ((yMax - yMin) / 4) * i;
-      ctx.fillText(val.toFixed(2), pad.left - 8, y + 4);
+      ctx.fillText(val.toFixed(2), pad.left - 6, y + 4);
     }
 
-    // X-axis labels
+    // X-axis labels — adaptive to screen width
     ctx.textAlign = 'center';
-    const xStep = Math.max(1, Math.floor(data.length / 8));
+    ctx.font = isPhone ? '10px sans-serif' : '11px sans-serif';
+    // Calculate max labels that can fit without overlapping
+    // Each label ~35px on phone, ~40px on desktop
+    const labelSpace = isPhone ? 40 : 50;
+    const maxLabels = Math.max(2, Math.floor(chartW / labelSpace));
+    const xStep = Math.max(1, Math.floor(data.length / maxLabels));
+    
     for (let i = 0; i < data.length; i += xStep) {
       const x = toX(i);
-      const label = data[i].date.slice(5);
+      // Shorter format on phone: "5-26" instead of "05-26"
+      let label = data[i].date;
+      if (isPhone) {
+        label = label.replace(/^0(\d)-/, '$1-').replace(/-0(\d)/, '-$1');
+      } else {
+        label = label.slice(5);
+      }
       ctx.fillText(label, x, h - pad.bottom + 18);
     }
 
@@ -129,11 +148,11 @@ Page({
     const midData = data.map(d => d.midRate);
     ctx.beginPath();
     ctx.moveTo(toX(0), toY(midData[0]));
+    ctx.lineTo(toX(0), pad.top + chartH);
     for (let i = 1; i < midData.length; i++) {
       ctx.lineTo(toX(i), toY(midData[i]));
     }
     ctx.lineTo(toX(midData.length - 1), pad.top + chartH);
-    ctx.lineTo(toX(0), pad.top + chartH);
     ctx.closePath();
     ctx.fillStyle = 'rgba(196, 149, 106, 0.08)';
     ctx.fill();
