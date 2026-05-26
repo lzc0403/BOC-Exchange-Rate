@@ -138,13 +138,21 @@ Page({
     // X labels — adaptive
     ctx.textAlign = 'center';
     ctx.font = isPhone ? '10px sans-serif' : '11px sans-serif';
-    const maxLabels = Math.max(2, Math.floor(chartW / (isPhone ? 45 : 55)));
+    // Smart label count: limit based on width AND data density
+    const maxLabels = Math.min(
+      Math.max(2, Math.floor(chartW / (isPhone ? 50 : 60))),
+      Math.ceil(data.length / 2)
+    );
     const xStep = Math.max(1, Math.floor(data.length / maxLabels));
     for (let i = 0; i < data.length; i += xStep) {
       let label = data[i].date;
       if (isPhone) label = label.replace(/^0(\d)-/, '$1-').replace(/-0(\d)/, '-$1');
       ctx.fillText(label, toX(i), h - pad.bottom + 18);
     }
+    // Always show last date label
+    let lastLabel = data[data.length - 1].date;
+    if (isPhone) lastLabel = lastLabel.replace(/^0(\d)-/, '$1-').replace(/-0(\d)/, '-$1');
+    ctx.fillText(lastLabel, w - pad.right, h - pad.bottom + 18);
 
     // Fill area
     const midData = data.map(d => d.midRate);

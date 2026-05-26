@@ -19,17 +19,17 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "牌价",
+        "text": "牌价汇率",
         "iconPath": "images/tab-icons/rate.png"
       },
       {
         "pagePath": "pages/history/history",
-        "text": "历史",
+        "text": "历史数据",
         "iconPath": "images/tab-icons/history.png"
       },
       {
         "pagePath": "pages/about/about",
-        "text": "关于",
+        "text": "关于订阅",
         "iconPath": "images/tab-icons/about.png"
       }
     ]
