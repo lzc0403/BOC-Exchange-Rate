@@ -5,6 +5,25 @@
     <button class="download-btn" bindtap="onDownload">下载CSV</button>
   </view>
 
+  <!-- Date Range Filter -->
+  <view class="date-filter">
+    <view class="date-toggle" bindtap="onToggleDateRange">
+      <text class="date-toggle-icon">📅</text>
+      <text>自定义日期范围</text>
+      <text class="toggle-arrow {{showDateRange ? 'arrow-up' : ''}}">▾</text>
+    </view>
+    <view class="date-panel {{showDateRange ? 'open' : ''}}">
+      <picker class="date-picker" mode="date" value="{{startDateVal}}" end="{{endDateVal}}" bindchange="onStartDateChange">
+        <view class="picker-btn">{{startDateVal || '开始日期'}}</view>
+      </picker>
+      <text class="date-sep">至</text>
+      <picker class="date-picker" mode="date" value="{{endDateVal}}" start="{{startDateVal}}" bindchange="onEndDateChange">
+        <view class="picker-btn">{{endDateVal || '结束日期'}}</view>
+      </picker>
+      <button class="query-btn" bindtap="onDateQuery">查询</button>
+    </view>
+  </view>
+
   <scroll-view scroll-y class="table-scroll">
     <view class="table">
       <view class="table-row header">

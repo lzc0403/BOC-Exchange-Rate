@@ -2,7 +2,7 @@
 <view class="page">
   <view class="card">
     <text class="card-title">Monica的外汇牌价</text>
-    <text class="card-desc">数据源自中国银行官方外汇牌价，每日北京时间10:30自动更新。简洁、准确、及时，为您的汇率研究提供可靠参考。</text>
+    <text class="card-desc">数据源自中国银行官方外汇牌价，每日北京时间9:30自动更新。简洁、准确、及时，为您的汇率研究提供可靠参考。</text>
   </view>
 
   <view class="card">
@@ -31,7 +31,7 @@
     </view>
     <view class="info-row">
       <text class="info-label">更新频率</text>
-      <text class="info-value">每日10:30</text>
+      <text class="info-value">每日9:30</text>
     </view>
   </view>
 

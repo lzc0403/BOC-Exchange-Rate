@@ -27,8 +27,83 @@
   line-height: 1.2;
 }
 
+/* Date Filter */
+.date-filter {
+  background: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.03);
+  overflow: hidden;
+}
+
+.date-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 24rpx;
+  font-size: 26rpx;
+  color: #6B6B6B;
+  background: #fff;
+}
+
+.date-toggle-icon {
+  font-size: 28rpx;
+}
+
+.toggle-arrow {
+  margin-left: auto;
+  font-size: 20rpx;
+  color: #aaa;
+  transition: transform 0.3s;
+}
+
+.toggle-arrow.arrow-up {
+  transform: rotate(180deg);
+}
+
+.date-panel {
+  display: none;
+  align-items: center;
+  gap: 12rpx;
+  padding: 0 24rpx 24rpx;
+  flex-wrap: wrap;
+}
+
+.date-panel.open {
+  display: flex;
+}
+
+.date-picker {
+  flex: 1;
+  min-width: 200rpx;
+}
+
+.picker-btn {
+  padding: 16rpx 20rpx;
+  border: 2rpx solid #E8E8E8;
+  border-radius: 10rpx;
+  font-size: 24rpx;
+  color: #333;
+  text-align: center;
+  background: #FAFAF8;
+}
+
+.date-sep {
+  font-size: 24rpx;
+  color: #aaa;
+}
+
+.query-btn {
+  padding: 14rpx 36rpx;
+  background: #C4956A;
+  color: #fff;
+  border-radius: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.2;
+}
+
 .table-scroll {
-  max-height: calc(100vh - 220rpx);
+  max-height: calc(100vh - 420rpx);
 }
 
 .table {
