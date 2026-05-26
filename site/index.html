@@ -1,1425 +1,652 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monica的经验分享 - 中国银行外汇牌价追踪</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Source+Sans+3:wght@300;400;500;600&family=Noto+Serif+SC:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-primary: #FAFAF8;
-            --bg-secondary: #F5F3EF;
-            --bg-card: #FFFFFF;
-            --text-primary: #1A1A1A;
-            --text-secondary: #6B6B6B;
-            --text-muted: #9A9A9A;
-            --accent-warm: #C4956A;
-            --accent-warm-light: #E8D5C0;
-            --accent-deep: #2D3436;
-            --accent-green: #27AE60;
-            --accent-red: #E74C3C;
-            --border-light: rgba(0,0,0,0.06);
-            --shadow-soft: 0 2px 20px rgba(0,0,0,0.04);
-            --shadow-hover: 0 8px 40px rgba(0,0,0,0.08);
-            --radius: 12px;
-            --transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Noto Sans SC', 'Source Sans 3', -apple-system, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.7;
-            font-weight: 400;
-            overflow-x: hidden;
-        }
-
-        /* Hero Section */
-        .hero {
-            min-height: 50vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 80px 24px 60px;
-            background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-            position: relative;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23C4956A' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            opacity: 0.5;
-        }
-
-        .hero-content {
-            position: relative;
-            z-index: 1;
-            max-width: 800px;
-        }
-
-        .site-title {
-            font-family: 'Playfair Display', 'Noto Serif SC', serif;
-            font-size: clamp(2rem, 5vw, 3.5rem);
-            font-weight: 500;
-            letter-spacing: -0.02em;
-            color: var(--text-primary);
-            margin-bottom: 16px;
-            animation: fadeInUp 0.8s ease-out;
-        }
-
-        .site-subtitle {
-            font-family: 'Noto Sans SC', sans-serif;
-            font-size: 1rem;
-            color: var(--text-secondary);
-            font-weight: 300;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            margin-bottom: 24px;
-            animation: fadeInUp 0.8s ease-out 0.2s both;
-        }
-
-        .hero-description {
-            font-size: 1.125rem;
-            color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto 40px;
-            line-height: 1.8;
-            animation: fadeInUp 0.8s ease-out 0.4s both;
-        }
-
-        .hero-meta {
-            display: flex;
-            gap: 32px;
-            justify-content: center;
-            flex-wrap: wrap;
-            animation: fadeInUp 0.8s ease-out 0.6s both;
-        }
-
-        .meta-item {
-            text-align: center;
-        }
-
-        .meta-value {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.5rem;
-            font-weight: 500;
-            color: var(--accent-warm);
-            line-height: 1;
-        }
-
-        .meta-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-top: 8px;
-        }
-
-        /* Main Content */
-        .main-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px 80px;
-        }
-
-        /* Section Styles */
-        .section {
-            margin-bottom: 64px;
-            animation: fadeInUp 0.6s ease-out;
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 32px;
-        }
-
-        .section-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--accent-warm);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .section-icon svg {
-            width: 20px;
-            height: 20px;
-            fill: white;
-        }
-
-        .section-title {
-            font-family: 'Noto Serif SC', serif;
-            font-size: 1.5rem;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        /* Stats Cards */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-            margin-bottom: 48px;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            padding: 28px;
-            border: 1px solid var(--border-light);
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: var(--accent-warm);
-            transform: scaleX(0);
-            transform-origin: left;
-            transition: transform 0.4s ease;
-        }
-
-        .stat-card:hover {
-            box-shadow: var(--shadow-hover);
-            transform: translateY(-4px);
-        }
-
-        .stat-card:hover::before {
-            transform: scaleX(1);
-        }
-
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 12px;
-        }
-
-        .stat-value {
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }
-
-        .stat-change {
-            font-size: 0.875rem;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .stat-change.up {
-            color: var(--accent-red);
-        }
-
-        .stat-change.down {
-            color: var(--accent-green);
-        }
-
-        /* Chart Container */
-        .chart-container {
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            padding: 32px;
-            border: 1px solid var(--border-light);
-            box-shadow: var(--shadow-soft);
-        }
-
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .chart-title {
-            font-family: 'Noto Serif SC', serif;
-            font-size: 1.25rem;
-            font-weight: 500;
-        }
-
-        .time-filter {
-            display: flex;
-            gap: 8px;
-        }
-
-        .time-btn {
-            padding: 8px 16px;
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            background: transparent;
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .time-btn:hover,
-        .time-btn.active {
-            background: var(--accent-deep);
-            color: white;
-            border-color: var(--accent-deep);
-        }
-
-        .chart-wrap {
-            position: relative;
-            width: 100%;
-        }
-
-        #chart {
-            width: 100% !important;
-        }
-
-        /* Date Range Picker */
-        .date-range-bar {
-            margin-bottom: 16px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .date-range-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            cursor: pointer;
-            padding: 6px 12px;
-            border-radius: 6px;
-            background: var(--bg-secondary);
-            transition: var(--transition);
-            user-select: none;
-        }
-
-        .date-range-toggle:hover {
-            background: var(--accent-warm-light);
-            color: var(--accent-warm);
-        }
-
-        .date-range-toggle .toggle-arrow {
-            transition: transform 0.3s ease;
-        }
-
-        .date-range-toggle.open .toggle-arrow {
-            transform: rotate(180deg);
-        }
-
-        .date-range-panel {
-            display: none;
-            align-items: center;
-            gap: 8px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-
-        .date-range-panel.open {
-            display: flex;
-        }
-
-        .date-input {
-            padding: 8px 14px;
-            border: 1.5px solid var(--border-light);
-            border-radius: 8px;
-            font-size: 0.85rem;
-            color: var(--text-primary);
-            font-family: 'Source Sans 3', 'Noto Sans SC', sans-serif;
-            background: var(--bg-primary);
-            outline: none;
-            transition: var(--transition);
-            cursor: pointer;
-        }
-
-        .date-input:focus {
-            border-color: var(--accent-warm);
-            box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.12);
-        }
-
-        .date-sep {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-weight: 300;
-        }
-
-        .date-query-btn {
-            padding: 8px 22px;
-            background: var(--accent-warm);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-family: 'Noto Sans SC', sans-serif;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .date-query-btn:hover {
-            background: #B8865A;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 10px rgba(196, 149, 106, 0.25);
-        }
-
-        /* Data Table */
-        .table-container {
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-        }
-
-        .table-header {
-            padding: 24px 28px;
-            border-bottom: 1px solid var(--border-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .table-title {
-            font-family: 'Noto Serif SC', serif;
-            font-size: 1.25rem;
-            font-weight: 500;
-        }
-
-        .download-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 24px;
-            background: var(--accent-deep);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            text-decoration: none;
-        }
-
-        .download-btn:hover {
-            background: #1a1a1a;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
-        .download-btn svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-
-        .data-table thead {
-            background: var(--bg-secondary);
-        }
-
-        .data-table th {
-            padding: 14px 20px;
-            text-align: left;
-            font-weight: 500;
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .data-table td {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-light);
-            color: var(--text-primary);
-        }
-
-        .data-table tbody tr {
-            transition: var(--transition);
-        }
-
-        .data-table tbody tr:hover {
-            background: var(--bg-secondary);
-        }
-
-        .data-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .rate-value {
-            font-family: 'Playfair Display', serif;
-            font-weight: 500;
-        }
-
-        /* Footer */
-        .footer {
-            background: var(--accent-deep);
-            color: white;
-            padding: 48px 24px;
-            text-align: center;
-        }
-
-        .footer-content {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .footer-brand {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.5rem;
-            font-weight: 500;
-            margin-bottom: 16px;
-        }
-
-        .footer-desc {
-            color: rgba(255,255,255,0.6);
-            font-size: 0.9rem;
-            margin-bottom: 24px;
-            line-height: 1.7;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 24px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .footer-link {
-            color: rgba(255,255,255,0.5);
-            text-decoration: none;
-            font-size: 0.85rem;
-            transition: color 0.3s ease;
-        }
-
-        .footer-link:hover {
-            color: var(--accent-warm);
-        }
-
-        .footer-copyright {
-            margin-top: 32px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            font-size: 0.8rem;
-            color: rgba(255,255,255,0.4);
-        }
-
-        /* Animations */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero {
-                min-height: 60vh;
-                padding: 60px 20px 40px;
-            }
-
-            .hero-meta {
-                gap: 24px;
-            }
-
-            .meta-value {
-                font-size: 2rem;
-            }
-
-            .chart-container {
-                padding: 20px;
-            }
-
-            .chart-wrap {
-                position: relative;
-                width: 100%;
-            }
-
-            .table-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .data-table {
-                font-size: 0.8rem;
-            }
-
-            .data-table th,
-            .data-table td {
-                padding: 12px;
-            }
-        }
-
-        /* Loading State */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 200px;
-            color: var(--text-muted);
-        }
-
-        .loading-spinner {
-            width: 24px;
-            height: 24px;
-            border: 2px solid var(--border-light);
-            border-top-color: var(--accent-warm);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 12px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ============================================================
-           Subscription Section
-           ============================================================ */
-        .subscription {
-            margin-top: 40px;
-            padding: 60px;
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-soft);
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .subscription::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--accent-warm-light), var(--accent-warm), var(--accent-warm-light));
-        }
-
-        .subscription-icon {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 20px;
-            color: var(--accent-warm);
-        }
-
-        .subscription-title {
-            font-family: 'Noto Serif SC', serif;
-            font-size: 1.6rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 12px;
-        }
-
-        .subscription-desc {
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-            margin-bottom: 32px;
-            max-width: 480px;
-            margin-left: auto;
-            margin-right: auto;
-            line-height: 1.6;
-        }
-
-        .subscription-form {
-            display: flex;
-            max-width: 480px;
-            margin: 0 auto;
-            gap: 12px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .subscription-input {
-            flex: 1;
-            min-width: 240px;
-            padding: 14px 20px;
-            border: 2px solid var(--border-light);
-            border-radius: 8px;
-            font-family: 'Source Sans 3', 'Noto Sans SC', sans-serif;
-            font-size: 0.95rem;
-            color: var(--text-primary);
-            background: var(--bg-primary);
-            transition: var(--transition);
-            outline: none;
-        }
-
-        .subscription-input:focus {
-            border-color: var(--accent-warm);
-            box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.15);
-        }
-
-        .subscription-input::placeholder {
-            color: var(--text-muted);
-        }
-
-        .subscription-btn {
-            padding: 14px 32px;
-            background: var(--accent-warm);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-family: 'Noto Sans SC', sans-serif;
-            font-size: 0.95rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            white-space: nowrap;
-        }
-
-        .subscription-btn:hover {
-            background: #B8865A;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 15px rgba(196, 149, 106, 0.3);
-        }
-
-        .subscription-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .subscription-message {
-            margin-top: 16px;
-            font-size: 0.9rem;
-            min-height: 24px;
-            transition: var(--transition);
-        }
-
-        .subscription-message.success {
-            color: var(--accent-green);
-        }
-
-        .subscription-message.error {
-            color: var(--accent-red);
-        }
-
-        .subscription-privacy {
-            margin-top: 16px;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .subscription-privacy a {
-            color: var(--accent-warm);
-            text-decoration: none;
-        }
-
-        .subscription-privacy a:hover {
-            text-decoration: underline;
-        }
-
-        @media (max-width: 768px) {
-            .subscription {
-                padding: 40px 24px;
-            }
-            .subscription-title {
-                font-size: 1.3rem;
-            }
-            .subscription-form {
-                flex-direction: column;
-            }
-            .subscription-input {
-                min-width: auto;
-            }
-        }
-
-        /* Footer enhancements */
-        .footer-links-group {
-            margin-top: 8px;
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Monica的经验分享 — 中国银行外汇牌价</title>
+<meta name="description" content="每日自动追踪美元兑人民币汇率，数据源自中国银行官方牌价。" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #533afd;
+  --primary-deep: #4434d4;
+  --primary-press: #2e2b8c;
+  --primary-soft: #665efd;
+  --primary-subdued: #b9b9f9;
+  --brand-dark: #1c1e54;
+  --green: #0ca678;
+  --green-bg: #e6fcf5;
+  --red: #e03131;
+  --red-bg: #fff5f5;
+  --canvas: #ffffff;
+  --canvas-soft: #f6f9fc;
+  --hairline: #e3e8ee;
+  --ink: #0d253d;
+  --ink-secondary: #273951;
+  --ink-mute: #64748d;
+  --on-primary: #ffffff;
+  --shadow-1: 0 1px 3px rgba(0,55,112,.08);
+  --shadow-2: 0 8px 24px rgba(0,55,112,.08), 0 2px 6px rgba(0,55,112,.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Inter", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  font-weight: 300;
+  font-feature-settings: "ss01";
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: inherit; text-decoration: none; }
+::selection { background: color-mix(in srgb, var(--primary) 25%, transparent); }
+.tabular { font-feature-settings: "ss01", "tnum"; letter-spacing: -0.42px; }
+
+/* Gradient mesh hero */
+.mesh-wrap { position: absolute; inset: 0 0 auto 0; height: 660px; overflow: hidden; z-index: 0; pointer-events: none; }
+.mesh {
+  position: absolute; inset: -60px; filter: blur(70px); opacity: 0.9;
+  background-color: #fbe9d2;
+  background-image:
+    radial-gradient(46% 65% at 8% 30%, #f5e9d4 0%, transparent 65%),
+    radial-gradient(38% 55% at 26% 55%, #ffc89a 0%, transparent 60%),
+    radial-gradient(40% 60% at 48% 38%, #d6c8ff 0%, transparent 60%),
+    radial-gradient(38% 55% at 62% 60%, #665efd 0%, transparent 60%),
+    radial-gradient(36% 55% at 80% 30%, #f96bee 0%, transparent 65%),
+    radial-gradient(40% 60% at 96% 60%, #ea2261 0%, transparent 60%);
+}
+.mesh-wrap::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 180px;
+  background: linear-gradient(to bottom, transparent, var(--canvas));
+}
+
+/* Nav */
+.navbar { position: relative; z-index: 5; }
+.nav-row { display: flex; align-items: center; gap: 24px; padding: 20px 0; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+.logo { font-weight: 500; font-size: 20px; letter-spacing: -0.4px; color: var(--ink); }
+
+/* Pill buttons */
+.pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 16px; border-radius: 9999px;
+  font: 400 15px/1 "Inter", "Noto Sans SC", system-ui, sans-serif;
+  font-feature-settings: "ss01";
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+  text-decoration: none; white-space: nowrap;
+}
+.pill-primary { background: var(--primary); color: var(--on-primary); }
+.pill-primary:hover { background: var(--primary-deep); }
+.pill-secondary { background: var(--canvas); color: var(--primary); border-color: var(--primary); }
+.pill-secondary:hover { background: var(--primary-subdued); }
+.pill-sm { padding: 6px 12px; font-size: 14px; }
+
+/* Layout */
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 2; }
+
+/* Hero */
+.hero { position: relative; z-index: 2; padding: 40px 0 100px; text-align: center; }
+.hero .eyebrow { font-size: 13px; font-weight: 400; letter-spacing: -0.39px; color: var(--ink-secondary); margin: 40px 0 20px; }
+.hero .eyebrow strong { color: var(--primary); font-weight: 500; }
+.display-xl {
+  font-weight: 300;
+  font-size: clamp(36px, 5.6vw, 68px);
+  line-height: 1.05;
+  letter-spacing: -2.2px;
+  margin: 0 auto 20px;
+  max-width: 14ch;
+}
+.lead { font-size: 17px; font-weight: 300; line-height: 1.5; color: var(--ink-secondary); max-width: 520px; margin: 0 auto 36px; }
+
+/* Hero metrics */
+.hero-metrics { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+.metric { text-align: center; }
+.metric-val { font-weight: 300; font-size: 40px; line-height: 1; letter-spacing: -0.8px; font-feature-settings: "ss01", "tnum"; color: var(--ink); }
+.metric-label { font-size: 12px; color: var(--ink-mute); letter-spacing: 0.04em; margin-top: 6px; }
+
+/* Section */
+.section { padding: 72px 0; }
+.section-soft { background: var(--canvas-soft); }
+.section-head { margin-bottom: 40px; }
+.section-head p.eyebrow { font-size: 13px; letter-spacing: -0.39px; color: var(--primary); margin-bottom: 12px; font-weight: 400; }
+.section-head h2 { font-weight: 300; font-size: clamp(24px, 3.4vw, 36px); line-height: 1.15; letter-spacing: -0.8px; margin: 0 0 12px; }
+.section-head p.desc { font-size: 16px; color: var(--ink-secondary); max-width: 560px; line-height: 1.5; margin: 0; }
+
+/* Stats grid */
+.stats-grid { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .stats-grid { grid-template-columns: 1fr; } }
+.stat-card {
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 28px; box-shadow: var(--shadow-1);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.stat-card .label { font-size: 12px; color: var(--ink-mute); letter-spacing: 0.04em; font-weight: 400; }
+.stat-card .value { font-weight: 300; font-size: 32px; line-height: 1; letter-spacing: -0.64px; font-feature-settings: "ss01", "tnum"; color: var(--ink); }
+.stat-card .value.green { color: var(--green); }
+.stat-card .value.red { color: var(--red); }
+.stat-card .change { font-size: 13px; letter-spacing: -0.39px; display: flex; align-items: center; gap: 4px; }
+.stat-card .change.up { color: var(--red); }
+.stat-card .change.down { color: var(--green); }
+.stat-card .sub { font-size: 12px; color: var(--ink-mute); letter-spacing: -0.36px; }
+
+/* Chart */
+.chart-card {
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 32px; box-shadow: var(--shadow-1);
+}
+.chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+.chart-head h3 { font-weight: 300; font-size: 22px; letter-spacing: -0.22px; }
+.time-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.time-btn {
+  padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 9999px;
+  background: transparent; color: var(--ink-secondary);
+  font-size: 13px; font-weight: 400; cursor: pointer;
+  transition: all .15s ease; font-family: inherit;
+}
+.time-btn:hover { border-color: var(--primary); color: var(--primary); }
+.time-btn.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.chart-wrap { position: relative; width: 100%; }
+#chart { width: 100% !important; }
+
+/* Table */
+.table-card {
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: 12px;
+  overflow: hidden; box-shadow: var(--shadow-1);
+}
+.table-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--hairline); flex-wrap: wrap; gap: 12px; }
+.table-head h3 { font-weight: 300; font-size: 20px; letter-spacing: -0.2px; }
+.download-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 9999px;
+  background: var(--ink); color: var(--on-primary);
+  font-size: 13px; font-weight: 400; cursor: pointer; border: none;
+  transition: all .15s ease; font-family: inherit; text-decoration: none;
+}
+.download-btn:hover { background: #1a3a5a; }
+.download-btn svg { width: 14px; height: 14px; }
+
+/* Date range */
+.date-range-bar { padding: 0 24px; border-bottom: 1px solid var(--hairline); }
+.date-range-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 12px 0; font-size: 13px; color: var(--ink-mute); cursor: pointer;
+  transition: color .15s ease; user-select: none; font-weight: 400;
+}
+.date-range-toggle:hover { color: var(--primary); }
+.date-range-toggle .arrow { transition: transform .3s ease; margin-left: 4px; }
+.date-range-toggle.open .arrow { transform: rotate(180deg); }
+.date-range-panel { display: none; align-items: center; gap: 10px; padding-bottom: 16px; flex-wrap: wrap; }
+.date-range-panel.open { display: flex; }
+.date-input {
+  padding: 8px 12px; border-radius: 6px; border: 1px solid var(--hairline);
+  font-size: 13px; font-family: inherit; font-weight: 300;
+  color: var(--ink); background: var(--canvas); outline: none;
+  transition: border-color .15s ease;
+}
+.date-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(83,58,253,0.15); }
+.date-sep { font-size: 13px; color: var(--ink-mute); font-weight: 300; }
+.date-query-btn {
+  padding: 8px 18px; border-radius: 9999px;
+  background: var(--primary); color: var(--on-primary); border: none;
+  font-size: 13px; font-weight: 400; cursor: pointer; font-family: inherit;
+  transition: background .15s ease;
+}
+.date-query-btn:hover { background: var(--primary-deep); }
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table thead { background: var(--canvas-soft); }
+.data-table th { padding: 12px 16px; text-align: left; font-weight: 400; color: var(--ink-mute); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.data-table td { padding: 14px 16px; border-bottom: 1px solid var(--hairline); color: var(--ink); font-weight: 300; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--canvas-soft); }
+.rate-value { font-feature-settings: "ss01", "tnum"; letter-spacing: -0.42px; }
+
+/* Subscription */
+.sub-card {
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 56px; box-shadow: var(--shadow-1); text-align: center;
+  position: relative; overflow: hidden;
+}
+.sub-card::after {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--primary-subdued), var(--primary));
+}
+.sub-card h3 { font-weight: 300; font-size: 28px; letter-spacing: -0.56px; margin-bottom: 12px; }
+.sub-card p.desc { font-size: 15px; color: var(--ink-secondary); max-width: 440px; margin: 0 auto 28px; line-height: 1.5; }
+.sub-form { display: flex; max-width: 420px; margin: 0 auto; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.sub-input {
+  flex: 1; min-width: 200px;
+  padding: 12px 16px; border-radius: 6px; border: 1px solid var(--hairline);
+  font-size: 14px; font-family: inherit; font-weight: 300;
+  color: var(--ink); background: var(--canvas); outline: none;
+  transition: border-color .15s ease;
+}
+.sub-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(83,58,253,0.15); }
+.sub-input::placeholder { color: var(--ink-mute); }
+.sub-btn {
+  padding: 12px 24px; border-radius: 9999px;
+  background: var(--primary); color: var(--on-primary); border: none;
+  font-size: 14px; font-weight: 400; cursor: pointer; font-family: inherit;
+  transition: background .15s ease; white-space: nowrap;
+}
+.sub-btn:hover { background: var(--primary-deep); }
+.sub-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sub-msg { margin-top: 12px; font-size: 13px; min-height: 20px; }
+.sub-msg.success { color: var(--green); }
+.sub-msg.error { color: var(--red); }
+.sub-privacy { margin-top: 12px; font-size: 12px; color: var(--ink-mute); }
+.sub-privacy a { color: var(--primary); }
+
+/* Footer */
+footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var(--canvas); }
+.footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; text-align: center; }
+.footer-brand { font-weight: 400; font-size: 18px; letter-spacing: -0.4px; margin-bottom: 12px; }
+.footer-desc { font-size: 13px; color: var(--ink-mute); line-height: 1.5; margin-bottom: 24px; }
+.footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+.footer-links a { font-size: 13px; color: var(--ink-mute); transition: color .15s ease; }
+.footer-links a:hover { color: var(--primary); }
+.footer-copy { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--ink-mute); }
+
+/* Loading */
+.loading { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--ink-mute); }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--hairline); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; margin-right: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Animations */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.animate { animation: fadeUp .6s ease-out both; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero { padding: 20px 0 60px; }
+  .nav-row { padding-top: 14px; padding-bottom: 14px; }
+  .section { padding: 48px 0; }
+  .sub-card { padding: 36px 24px; }
+  .chart-card { padding: 20px; }
+  .table-head { padding: 16px; }
+  .data-table th, .data-table td { padding: 10px 12px; font-size: 13px; }
+}
+</style>
 </head>
 <body>
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-content">
-            <h1 class="site-title">Monica的经验分享</h1>
-            <p class="site-subtitle">中国银行外汇牌价追踪</p>
-            <p class="hero-description">
-                每日自动追踪美元兑人民币汇率变化，数据源自中国银行官方牌价。<br>
-                简洁、准确、及时，为您的汇率研究提供可靠参考。
-            </p>
-            <div class="hero-meta">
-                <div class="meta-item">
-                    <div class="meta-value" id="totalDays">-</div>
-                    <div class="meta-label">累计天数</div>
-                </div>
-                <div class="meta-item">
-                    <div class="meta-value" id="latestRate">-</div>
-                    <div class="meta-label">最新折算价</div>
-                </div>
-                <div class="meta-item">
-                    <div class="meta-value" id="dataRange">-</div>
-                    <div class="meta-label">数据跨度</div>
-                </div>
-            </div>
+
+<div class="mesh-wrap"><div class="mesh"></div></div>
+
+<header class="navbar"><div class="nav-row">
+  <a class="logo" href="#">Monica的外汇牌价</a>
+</div></header>
+
+<section class="hero"><div class="wrap">
+  <p class="eyebrow"><strong>中国银行官方数据</strong> · 每日自动更新</p>
+  <h1 class="display-xl">美元兑人民币<br>汇率追踪</h1>
+  <p class="lead">每日自动抓取中国银行官方外汇牌价，提供清晰的走势图表与完整的历史数据。</p>
+  <div class="hero-metrics">
+    <div class="metric">
+      <div class="metric-val tabular" id="heroTotal">—</div>
+      <div class="metric-label">累计天数</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val tabular" id="heroRate">—</div>
+      <div class="metric-label">最新折算价</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val tabular" id="heroRange">—</div>
+      <div class="metric-label">数据跨度</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val tabular" id="heroUpdate">—</div>
+      <div class="metric-label">最近更新</div>
+    </div>
+  </div>
+</div></section>
+
+<main class="wrap">
+
+  <!-- Stats -->
+  <section class="section animate" style="padding-top:0;">
+    <div class="section-head">
+      <p class="eyebrow">实时概览</p>
+      <h2>最新牌价</h2>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="label">现汇买入价</span>
+        <span class="value" id="buyRate">—</span>
+        <span class="change" id="buyChange">加载中...</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">现汇卖出价</span>
+        <span class="value" id="sellRate">—</span>
+        <span class="change" id="sellChange">加载中...</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">中行折算价</span>
+        <span class="value" id="midRate">—</span>
+        <span class="change" id="midChange">加载中...</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">数据覆盖</span>
+        <span class="value tabular" id="dataDays" style="font-size:26px;">—</span>
+        <span class="change" id="dataRange" style="color:var(--ink-mute);">加载中...</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Chart -->
+  <section class="section section-soft animate">
+    <div class="section-head">
+      <p class="eyebrow">汇率走势</p>
+      <h2>美元兑人民币 中行折算价</h2>
+      <p class="desc">选择时间段查看汇率变化趋势，三条线分别代表折算价、买入价和卖出价。</p>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>走势图</h3>
+        <div class="time-filter">
+          <button class="time-btn" data-days="30">近30天</button>
+          <button class="time-btn active" data-days="90">近3月</button>
+          <button class="time-btn" data-days="180">近6月</button>
+          <button class="time-btn" data-days="365">近1年</button>
+          <button class="time-btn" data-days="0">全部</button>
         </div>
-    </section>
+      </div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </div>
+  </section>
 
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Stats Section -->
-        <section class="section">
-            <div class="section-header">
-                <div class="section-icon">
-                    <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-                </div>
-                <h2 class="section-title">实时数据概览</h2>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">现汇买入价</div>
-                    <div class="stat-value" id="buyRate">-</div>
-                    <div class="stat-change" id="buyChange">加载中...</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">现汇卖出价</div>
-                    <div class="stat-value" id="sellRate">-</div>
-                    <div class="stat-change" id="sellChange">加载中...</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">中行折算价</div>
-                    <div class="stat-value" id="midRate">-</div>
-                    <div class="stat-change" id="midChange">加载中...</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">数据更新</div>
-                    <div class="stat-value" id="lastUpdate" style="font-size: 1.25rem;">-</div>
-                    <div class="stat-change" style="color: var(--text-muted);">
-                        系统运行: <span id="systemUpdate">-</span> · 每日10:30自动更新
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Chart Section -->
-        <section class="section">
-            <div class="section-header">
-                <div class="section-icon">
-                    <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
-                </div>
-                <h2 class="section-title">汇率走势</h2>
-            </div>
-            <div class="chart-container">
-                <div class="chart-header">
-                    <h3 class="chart-title">美元兑人民币 中行折算价</h3>
-                    <div class="time-filter">
-                        <button class="time-btn" data-days="30">近30天</button>
-                        <button class="time-btn active" data-days="90">近3月</button>
-                        <button class="time-btn" data-days="180">近6月</button>
-                        <button class="time-btn" data-days="365">近1年</button>
-                        <button class="time-btn" data-days="0">全部</button>
-                    </div>
-                </div>
-                <div class="chart-wrap"><canvas id="chart"></canvas></div>
-            </div>
-        </section>
-
-        <!-- Data Table Section -->
-        <section class="section">
-            <div class="section-header">
-                <div class="section-icon">
-                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
-                </div>
-                <h2 class="section-title">历史数据</h2>
-            </div>
-            <div class="table-container">
-                <div class="table-header">
-                    <h3 class="table-title">最近30天数据</h3>
-                    <a href="boc_usd_cny.csv" download class="download-btn">
-                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-                        下载完整数据 (CSV)
-                    </a>
-                </div>
-                <div class="date-range-bar" style="padding-top:0;border-bottom:none;margin-bottom:12px;">
-                    <div class="date-range-toggle" id="dateRangeToggle">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
-                        自定义日期范围
-                        <svg class="toggle-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </div>
-                    <div class="date-range-panel" id="dateRangePanel">
-                        <input type="date" class="date-input" id="startDate">
-                        <span class="date-sep">—</span>
-                        <input type="date" class="date-input" id="endDate">
-                        <button class="date-query-btn" id="dateQueryBtn">查询</button>
-                    </div>
-                </div>
-                <div style="overflow-x: auto;">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>查询日期</th>
-                                <th>现汇买入价</th>
-                                <th>现钞买入价</th>
-                                <th>现汇卖出价</th>
-                                <th>现钞卖出价</th>
-                                <th>中行折算价</th>
-                                <th>发布时间</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dataTableBody">
-                            <tr>
-                                <td colspan="7" class="loading">
-                                    <div class="loading-spinner"></div>
-                                    加载数据中...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- Email Subscription Section -->
-        <section class="section subscription">
-            <div class="subscription-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                    <line x1="10" y1="15" x2="14" y2="15"/>
-                </svg>
-            </div>
-            <h3 class="subscription-title">订阅每日汇率推送</h3>
-            <p class="subscription-desc">
-                订阅后，每日抓取完成后将自动发送最新汇率数据到您的邮箱，<br>不再错过任何汇率波动。
-            </p>
-            <form class="subscription-form" id="subscribeForm">
-                <input type="email" class="subscription-input" id="subscribeEmail"
-                       placeholder="输入您的邮箱地址" required>
-                <button type="submit" class="subscription-btn" id="subscribeBtn">
-                    立即订阅
-                </button>
-            </form>
-            <div class="subscription-message" id="subscribeMessage"></div>
-            <p class="subscription-privacy">
-                无需担心垃圾邮件，您可以随时<a href="#" id="unsubscribeLink">退订</a>。
-                数据仅供推送使用，不会泄露给第三方。
-            </p>
-        </section>
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-brand">Monica的经验分享</div>
-            <p class="footer-desc">
-                数据来源：中国银行外汇牌价<br>
-                自动更新：每日北京时间 10:30
-            </p>
-            <div class="footer-links">
-                <a href="https://www.bankofchina.com" target="_blank" class="footer-link">中国银行官网</a>
-                <a href="boc_usd_cny.csv" download class="footer-link">下载数据</a>
-            </div>
-            <div class="footer-copyright">
-                &copy; 2026 Monica的经验分享. 数据仅供参考，不构成投资建议。
-            </div>
+  <!-- Table -->
+  <section class="section animate">
+    <div class="section-head">
+      <p class="eyebrow">历史数据</p>
+      <h2>完整记录</h2>
+      <p class="desc">支持自定义日期范围查询，所有数据均可下载 CSV 文件。</p>
+    </div>
+    <div class="table-card">
+      <div class="table-head">
+        <h3 class="table-title">最近30天数据</h3>
+        <a href="boc_usd_cny.csv" download class="download-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          下载 CSV
+        </a>
+      </div>
+      <div class="date-range-bar">
+        <div class="date-range-toggle" id="dateRangeToggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+          自定义日期范围
+          <span class="arrow">▾</span>
         </div>
-    </footer>
+        <div class="date-range-panel" id="dateRangePanel">
+          <input type="date" class="date-input" id="startDate">
+          <span class="date-sep">至</span>
+          <input type="date" class="date-input" id="endDate">
+          <button class="date-query-btn" id="dateQueryBtn">查询</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>现汇买入</th>
+              <th>现钞买入</th>
+              <th>现汇卖出</th>
+              <th>现钞卖出</th>
+              <th>折算价</th>
+              <th>发布时间</th>
+            </tr>
+          </thead>
+          <tbody id="dataTableBody">
+            <tr><td colspan="7" class="loading">
+              <div class="spinner"></div>加载数据中...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Subscription -->
+  <section class="section animate">
+    <div class="sub-card">
+      <h3>订阅每日汇率推送</h3>
+      <p class="desc">每日抓取完成后，自动发送最新汇率数据到您的邮箱，不再错过任何汇率波动。</p>
+      <form class="sub-form" id="subscribeForm">
+        <input type="email" class="sub-input" id="subscribeEmail" placeholder="输入邮箱地址" required>
+        <button type="submit" class="sub-btn" id="subscribeBtn">立即订阅</button>
+      </form>
+      <div class="sub-msg" id="subscribeMessage"></div>
+      <p class="sub-privacy">
+        无需担心垃圾邮件，可随时 <a href="#" id="unsubscribeLink">退订</a>。
+        数据仅供推送使用。
+      </p>
+    </div>
+  </section>
 
-    <script>
-        // Global data store
-        let allData = [];
-        let chart = null;
+</main>
 
-        // Load and parse CSV data
-        async function loadData() {
-            try {
-                const csvUrls = [
-                    'boc_usd_cny.csv',
-                    './boc_usd_cny.csv',
-                ];
-                
-                let text = null;
-                for (const url of csvUrls) {
-                    try {
-                        const resp = await fetch(url);
-                        if (resp.ok) {
-                            text = await resp.text();
-                            console.log('CSV loaded from:', url);
-                            break;
-                        }
-                    } catch (e) {
-                        console.warn('Failed to load from:', url, e);
-                    }
-                }
-                
-                if (!text) {
-                    throw new Error('所有CSV路径均加载失败');
-                }
-                const lines = text.trim().split('\n');
-                const headers = lines[0].split(',');
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">Monica的经验分享</div>
+    <p class="footer-desc">
+      数据来源：中国银行外汇牌价 · 自动更新：每日北京时间 09:30<br>
+      数据仅供参考，不构成投资建议。
+    </p>
+    <div class="footer-links">
+      <a href="https://www.bankofchina.com" target="_blank">中国银行官网</a>
+      <a href="boc_usd_cny.csv" download>下载 CSV</a>
+    </div>
+    <div class="footer-copy">&copy; 2026 Monica的经验分享</div>
+  </div>
+</footer>
 
-                allData = lines.slice(1).map(line => {
-                    const values = line.split(',');
-                    return {
-                        date: values[7],
-                        buyRate: parseFloat(values[1]),
-                        cashBuyRate: parseFloat(values[2]),
-                        sellRate: parseFloat(values[3]),
-                        cashSellRate: parseFloat(values[4]),
-                        midRate: parseFloat(values[5]),
-                        publishTime: values[6]
-                    };
-                }).filter(d => d.date && !isNaN(d.midRate));
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-                // Sort by date
-                allData.sort((a, b) => a.date.localeCompare(b.date));
+<script>
+let allData = [];
+let chart = null;
 
-                updateStats();
-                // Set date input range based on available data
-                if (allData.length > 0) {
-                    document.getElementById('startDate').min = allData[0].date;
-                    document.getElementById('startDate').max = allData[allData.length - 1].date;
-                    document.getElementById('endDate').min = allData[0].date;
-                    document.getElementById('endDate').max = allData[allData.length - 1].date;
-                }
-                initChart(90);
-                updateTable(30);
-            } catch (error) {
-                console.error('Error loading data:', error);
-                document.getElementById('dataTableBody').innerHTML = `
-                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
-                        数据加载失败，请刷新页面重试
-                    </td></tr>
-                `;
-            }
+async function loadData() {
+  try {
+    const urls = ['boc_usd_cny.csv', './boc_usd_cny.csv'];
+    let text = null;
+    for (const url of urls) {
+      try {
+        const r = await fetch(url);
+        if (r.ok) { text = await r.text(); break; }
+      } catch(e) {}
+    }
+    if (!text) throw Error('CSV load failed');
+    const lines = text.trim().split('\n');
+    allData = lines.slice(1).map(l => {
+      const v = l.split(',');
+      return {
+        date: v[7], buyRate: +v[1], cashBuyRate: +v[2],
+        sellRate: +v[3], cashSellRate: +v[4], midRate: +v[5], publishTime: v[6]
+      };
+    }).filter(d => d.date && !isNaN(d.midRate));
+    allData.sort((a, b) => a.date.localeCompare(b.date));
+    updateStats();
+    const first = allData[0], last = allData[allData.length - 1];
+    document.getElementById('startDate').min = first.date;
+    document.getElementById('startDate').max = last.date;
+    document.getElementById('endDate').min = first.date;
+    document.getElementById('endDate').max = last.date;
+    initChart(90);
+    updateTable(30);
+  } catch(e) {
+    console.error(e);
+    document.getElementById('dataTableBody').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--ink-mute);">数据加载失败，请刷新</td></tr>';
+  }
+}
+
+function updateStats() {
+  if (!allData.length) return;
+  const l = allData[allData.length - 1], p = allData.length > 1 ? allData[allData.length - 2] : null;
+  document.getElementById('heroTotal').textContent = allData.length;
+  document.getElementById('heroRate').textContent = l.midRate.toFixed(2);
+  document.getElementById('heroRange').textContent = allData[0].date.substring(0,7) + ' ~ ' + l.date.substring(0,7);
+  document.getElementById('heroUpdate').textContent = l.date;
+
+  const fmt = (v) => v.toFixed(2);
+  const trend = (v, pv, elId, changeId) => {
+    document.getElementById(elId).textContent = fmt(v);
+    if (p) {
+      const d = v - pv, cls = d >= 0 ? 'up' : 'down', arrow = d >= 0 ? '↑' : '↓';
+      document.getElementById(changeId).innerHTML =
+        `<span class="change ${cls}">${arrow} ${Math.abs(d).toFixed(2)} (${((d/pv)*100).toFixed(3)}%)</span>`;
+    }
+  };
+  trend(l.buyRate, p ? p.buyRate : null, 'buyRate', 'buyChange');
+  trend(l.sellRate, p ? p.sellRate : null, 'sellRate', 'sellChange');
+  trend(l.midRate, p ? p.midRate : null, 'midRate', 'midChange');
+  document.getElementById('dataDays').textContent = allData.length;
+  document.getElementById('dataRange').textContent = allData[0].date + ' ~ ' + l.date;
+}
+
+function initChart(days, customRange) {
+  const ctx = document.getElementById('chart');
+  if (!ctx) return;
+  let data = allData;
+  if (customRange) data = allData.filter(d => d.date >= customRange.start && d.date <= customRange.end);
+  else if (days > 0) {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+    data = allData.filter(d => d.date >= cutoff.toISOString().split('T')[0]);
+  }
+  if (!data.length) {
+    if (chart) { chart.destroy(); chart = null; }
+    const parent = ctx.parentNode;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;justify-content:center;height:400px;color:var(--ink-mute);font-size:15px;';
+    div.textContent = '所选时间段无数据';
+    parent.replaceChild(div, ctx);
+    return;
+  }
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [
+        { label: '中行折算价', data: data.map(d => d.midRate), borderColor: '#533afd', backgroundColor: 'rgba(83,58,253,0.06)', borderWidth: 2, fill: true, tension: .4, pointRadius: 0, pointHoverRadius: 5 },
+        { label: '现汇买入价', data: data.map(d => d.buyRate), borderColor: '#0ca678', borderWidth: 1.5, borderDash: [5,5], fill: false, tension: .4, pointRadius: 0, pointHoverRadius: 4 },
+        { label: '现汇卖出价', data: data.map(d => d.sellRate), borderColor: '#e03131', borderWidth: 1.5, borderDash: [5,5], fill: false, tension: .4, pointRadius: 0, pointHoverRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true, aspectRatio: 2.5,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          position: 'top', align: 'end',
+          labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, font: { family: "'Inter','Noto Sans SC',sans-serif", size: 12, weight: '400' } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(13,37,61,0.95)', padding: 12, cornerRadius: 8,
+          titleFont: { size: 13, weight: '400' }, bodyFont: { size: 13 },
+          callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) }
         }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0, font: { size: 11 }, color: '#64748d' } },
+        y: { beginAtZero: false, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false }, ticks: { maxTicksLimit: 6, font: { size: 11 }, color: '#64748d', callback: v => v.toFixed(2) } }
+      }
+    }
+  });
+}
 
-        // Update statistics
-        function updateStats() {
-            if (allData.length === 0) return;
+function updateTable(days, customRange) {
+  const tbody = document.getElementById('dataTableBody');
+  let data = [...allData].reverse();
+  if (customRange) data = data.filter(d => d.date >= customRange.start && d.date <= customRange.end);
+  else if (days > 0) data = data.slice(0, days);
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--ink-mute);">暂无数据</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(d => `<tr>
+    <td>${d.date}</td>
+    <td><span class="rate-value">${d.buyRate.toFixed(2)}</span></td>
+    <td><span class="rate-value">${d.cashBuyRate.toFixed(2)}</span></td>
+    <td><span class="rate-value">${d.sellRate.toFixed(2)}</span></td>
+    <td><span class="rate-value">${d.cashSellRate.toFixed(2)}</span></td>
+    <td><span class="rate-value">${d.midRate.toFixed(2)}</span></td>
+    <td>${d.publishTime}</td>
+  </tr>`).join('');
+}
 
-            const latest = allData[allData.length - 1];
-            const previous = allData.length > 1 ? allData[allData.length - 2] : null;
+// Time filter
+document.querySelectorAll('.time-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    initChart(+this.dataset.days);
+    updateStats();
+  });
+});
 
-            // Total days
-            document.getElementById('totalDays').textContent = allData.length;
+// Date range
+document.getElementById('dateRangeToggle').addEventListener('click', function() {
+  document.getElementById('dateRangePanel').classList.toggle('open');
+  this.classList.toggle('open');
+});
+function handleDateQuery() {
+  const s = document.getElementById('startDate').value, e = document.getElementById('endDate').value;
+  if (!s || !e) return;
+  if (s > e) { alert('开始日期不能晚于结束日期'); return; }
+  updateTable(0, { start: s, end: e });
+  const t = document.querySelector('.table-title');
+  if (t) t.textContent = s + ' ~ ' + e;
+}
+document.getElementById('dateQueryBtn').addEventListener('click', handleDateQuery);
+document.getElementById('startDate').addEventListener('keydown', e => { if (e.key === 'Enter') handleDateQuery(); });
+document.getElementById('endDate').addEventListener('keydown', e => { if (e.key === 'Enter') handleDateQuery(); });
 
-            // Latest rate
-            document.getElementById('latestRate').textContent = latest.midRate.toFixed(2);
+document.addEventListener('DOMContentLoaded', loadData);
 
-            // Data range
-            const firstDate = allData[0].date;
-            const lastDate = latest.date;
-            const startDate = firstDate.substring(0, 7);
-            const endDate = lastDate.substring(0, 7);
-            document.getElementById('dataRange').textContent = `${startDate} ~ ${endDate}`;
-
-            // Buy rate
-            document.getElementById('buyRate').textContent = latest.buyRate.toFixed(2);
-            if (previous) {
-                const change = latest.buyRate - previous.buyRate;
-                const changeClass = change >= 0 ? 'up' : 'down';
-                const changeText = change >= 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
-                document.getElementById('buyChange').innerHTML = `
-                    <span class="stat-change ${changeClass}">
-                        ${change >= 0 ? '↑' : '↓'} ${changeText} (${((change/previous.buyRate)*100).toFixed(3)}%)
-                    </span>
-                `;
-            }
-
-            // Sell rate
-            document.getElementById('sellRate').textContent = latest.sellRate.toFixed(2);
-            if (previous) {
-                const change = latest.sellRate - previous.sellRate;
-                const changeClass = change >= 0 ? 'up' : 'down';
-                const changeText = change >= 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
-                document.getElementById('sellChange').innerHTML = `
-                    <span class="stat-change ${changeClass}">
-                        ${change >= 0 ? '↑' : '↓'} ${changeText} (${((change/previous.sellRate)*100).toFixed(3)}%)
-                    </span>
-                `;
-            }
-
-            // Mid rate
-            document.getElementById('midRate').textContent = latest.midRate.toFixed(2);
-            if (previous) {
-                const change = latest.midRate - previous.midRate;
-                const changeClass = change >= 0 ? 'up' : 'down';
-                const changeText = change >= 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
-                document.getElementById('midChange').innerHTML = `
-                    <span class="stat-change ${changeClass}">
-                        ${change >= 0 ? '↑' : '↓'} ${changeText} (${((change/previous.midRate)*100).toFixed(3)}%)
-                    </span>
-                `;
-            }
-
-            // Last data date + system update date
-            const publishDate = latest.publishTime.replace(/\//g, '-').split(' ');
-            document.getElementById('lastUpdate').textContent = publishDate[0];
-            
-            // Show system update date in subtitle
-            const today = new Date();
-            const y = today.getFullYear();
-            const m = String(today.getMonth() + 1).padStart(2, '0');
-            const d = String(today.getDate()).padStart(2, '0');
-            const sysSpan = document.querySelector('.stat-change span');
-            if (sysSpan) sysSpan.textContent = `${y}-${m}-${d}`;
-        }
-
-        // Initialize chart with optional custom date range
-        function initChart(days, customRange) {
-            const ctx = document.getElementById('chart');
-            if (!ctx) return;
-
-            let data = allData;
-            
-            if (customRange) {
-                // Custom date range
-                data = allData.filter(d => d.date >= customRange.start && d.date <= customRange.end);
-            } else if (days > 0) {
-                // Preset range
-                const cutoff = new Date();
-                cutoff.setDate(cutoff.getDate() - days);
-                const cutoffStr = cutoff.toISOString().split('T')[0];
-                data = allData.filter(d => d.date >= cutoffStr);
-            }
-
-            if (data.length === 0) {
-                if (chart) chart.destroy();
-                const canvas = ctx;
-                const parent = canvas.parentNode;
-                const placeholder = document.createElement('div');
-                placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:400px;color:var(--text-muted);font-size:1rem;';
-                placeholder.textContent = '所选时间段无数据';
-                if (chart) {
-                    parent.replaceChild(placeholder, canvas);
-                    chart = null;
-                }
-                return;
-            }
-
-            const labels = data.map(d => d.date);
-            const midRates = data.map(d => d.midRate);
-            const buyRates = data.map(d => d.buyRate);
-            const sellRates = data.map(d => d.sellRate);
-
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: '中行折算价',
-                            data: midRates,
-                            borderColor: '#C4956A',
-                            backgroundColor: 'rgba(196, 149, 106, 0.1)',
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHoverRadius: 6,
-                            pointHoverBackgroundColor: '#C4956A'
-                        },
-                        {
-                            label: '现汇买入价',
-                            data: buyRates,
-                            borderColor: '#27AE60',
-                            borderWidth: 1.5,
-                            borderDash: [5, 5],
-                            fill: false,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHoverRadius: 4
-                        },
-                        {
-                            label: '现汇卖出价',
-                            data: sellRates,
-                            borderColor: '#E74C3C',
-                            borderWidth: 1.5,
-                            borderDash: [5, 5],
-                            fill: false,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHoverRadius: 4
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    aspectRatio: 2.5,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            align: 'end',
-                            labels: {
-                                usePointStyle: true,
-                                pointStyle: 'circle',
-                                padding: 20,
-                                font: {
-                                    family: "'Noto Sans SC', sans-serif",
-                                    size: 12
-                                }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(26, 26, 26, 0.95)',
-                            titleFont: {
-                                family: "'Noto Sans SC', sans-serif",
-                                size: 13
-                            },
-                            bodyFont: {
-                                family: "'Source Sans 3', sans-serif",
-                                size: 12
-                            },
-                            padding: 12,
-                            cornerRadius: 8,
-                            displayColors: true,
-                            callbacks: {
-                                label: function(context) {
-                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: {
-                                display: false
-                            },
-                            ticks: {
-                                maxTicksLimit: 10,
-                                maxRotation: 0,
-                                font: {
-                                    family: "'Source Sans 3', sans-serif",
-                                    size: 11
-                                },
-                                color: '#9A9A9A'
-                            }
-                        },
-                        y: {
-                            beginAtZero: false,
-                            grid: {
-                                color: 'rgba(0,0,0,0.04)',
-                                drawBorder: false,
-                            },
-                            ticks: {
-                                maxTicksLimit: 6,
-                                font: {
-                                    family: "'Source Sans 3', sans-serif",
-                                    size: 11
-                                },
-                                color: '#9A9A9A',
-                                callback: function(value) {
-                                    return value.toFixed(2);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Update data table
-        function updateTable(days, customRange) {
-            const tbody = document.getElementById('dataTableBody');
-            let data = [...allData].reverse();
-
-            if (customRange) {
-                data = data.filter(d => d.date >= customRange.start && d.date <= customRange.end);
-            } else if (days > 0) {
-                data = data.slice(0, days);
-            }
-
-            if (data.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
-                        暂无数据
-                    </td></tr>
-                `;
-                return;
-            }
-
-            tbody.innerHTML = data.map(d => `
-                <tr>
-                    <td>${d.date}</td>
-                    <td><span class="rate-value">${d.buyRate.toFixed(2)}</span></td>
-                    <td><span class="rate-value">${d.cashBuyRate.toFixed(2)}</span></td>
-                    <td><span class="rate-value">${d.sellRate.toFixed(2)}</span></td>
-                    <td><span class="rate-value">${d.cashSellRate.toFixed(2)}</span></td>
-                    <td><span class="rate-value">${d.midRate.toFixed(2)}</span></td>
-                    <td>${d.publishTime}</td>
-                </tr>
-            `).join('');
-        }
-
-        // Time filter buttons (chart only)
-        document.querySelectorAll('.time-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                const days = parseInt(this.dataset.days);
-                initChart(days);
-                updateStats();
-            });
-        });
-
-        // Date range toggle
-        document.getElementById('dateRangeToggle').addEventListener('click', function() {
-            const panel = document.getElementById('dateRangePanel');
-            panel.classList.toggle('open');
-            this.classList.toggle('open');
-        });
-
-        // Custom date query (for table only)
-        function handleDateQuery() {
-            const startVal = document.getElementById('startDate').value;
-            const endVal = document.getElementById('endDate').value;
-            
-            if (!startVal || !endVal) return;
-            
-            if (startVal > endVal) {
-                alert('开始日期不能晚于结束日期');
-                return;
-            }
-            
-            updateTable(0, { start: startVal, end: endVal });
-            const titleEl = document.querySelector('.table-title');
-            if (titleEl) titleEl.textContent = `${startVal} ~ ${endVal}`;
-        }
-
-        document.getElementById('dateQueryBtn').addEventListener('click', handleDateQuery);
-        document.getElementById('startDate').addEventListener('keydown', e => { if (e.key === 'Enter') handleDateQuery(); });
-        document.getElementById('endDate').addEventListener('keydown', e => { if (e.key === 'Enter') handleDateQuery(); });
-
-        // Load data on page load
-        document.addEventListener('DOMContentLoaded', loadData);
-
-        // ============================================================
-        //  Email Subscription
-        // ============================================================
-
-        // Configuration - change API_URL after deploying your Cloudflare Worker
-        const SUBSCRIBER_API = {
-            URL: 'https://boc-subscription-api.lg111481.workers.dev',  // 替换为你的Worker地址
-            TIMEOUT: 10000,
-        };
-
-        async function handleSubscribe(event) {
-            event.preventDefault();
-
-            const emailInput = document.getElementById('subscribeEmail');
-            const messageEl = document.getElementById('subscribeMessage');
-            const btn = document.getElementById('subscribeBtn');
-            const email = emailInput.value.trim().toLowerCase();
-
-            // Basic validation
-            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                messageEl.className = 'subscription-message error';
-                messageEl.textContent = '请输入有效的邮箱地址';
-                return;
-            }
-
-            // Disable form
-            btn.disabled = true;
-            btn.textContent = '订阅中...';
-            messageEl.className = 'subscription-message';
-            messageEl.textContent = '';
-
-            try {
-                const response = await fetch(SUBSCRIBER_API.URL + '/subscribe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email }),
-                    signal: AbortSignal.timeout(SUBSCRIBER_API.TIMEOUT),
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    messageEl.className = 'subscription-message success';
-                    messageEl.textContent = '✅ ' + data.message;
-                    emailInput.value = '';
-                } else {
-                    messageEl.className = 'subscription-message error';
-                    messageEl.textContent = data.error || '订阅失败，请稍后重试';
-                }
-            } catch (error) {
-                if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-                    messageEl.className = 'subscription-message error';
-                    messageEl.textContent = '请求超时，请检查网络连接';
-                } else if (SUBSCRIBER_API.URL.includes('your-worker')) {
-                    messageEl.className = 'subscription-message error';
-                    messageEl.textContent = '订阅服务尚未配置，请联系管理员';
-                } else {
-                    messageEl.className = 'subscription-message error';
-                    messageEl.textContent = '网络错误，请稍后重试';
-                }
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '立即订阅';
-            }
-        }
-
-        // Handle unsubscribe link
-        function handleUnsubscribe() {
-            const email = prompt('请输入要退订的邮箱地址：');
-            if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                const url = SUBSCRIBER_API.URL + '/unsubscribe?email=' + encodeURIComponent(email);
-                window.open(url, '_blank');
-            } else if (email) {
-                alert('请输入有效的邮箱地址');
-            }
-        }
-
-        // Bind events
-        document.getElementById('subscribeForm').addEventListener('submit', handleSubscribe);
-        document.getElementById('unsubscribeLink').addEventListener('click', function(e) {
-            e.preventDefault();
-            handleUnsubscribe();
-        });
-    </script>
+// Subscription
+const API_URL = 'https://boc-subscription-api.lg111481.workers.dev';
+document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('subscribeEmail').value.trim().toLowerCase();
+  const msg = document.getElementById('subscribeMessage');
+  const btn = document.getElementById('subscribeBtn');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    msg.className = 'sub-msg error'; msg.textContent = '请输入有效的邮箱地址'; return;
+  }
+  btn.disabled = true; btn.textContent = '订阅中...';
+  msg.className = 'sub-msg';
+  try {
+    const r = await fetch(API_URL + '/subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }), signal: AbortSignal.timeout(10000)
+    });
+    const d = await r.json();
+    msg.className = 'sub-msg ' + (d.success ? 'success' : 'error');
+    msg.textContent = d.success ? '✅ ' + d.message : (d.error || '订阅失败');
+    if (d.success) document.getElementById('subscribeEmail').value = '';
+  } catch(err) {
+    msg.className = 'sub-msg error';
+    msg.textContent = err.name === 'TimeoutError' ? '请求超时，请检查网络' : '网络错误，请稍后重试';
+  } finally {
+    btn.disabled = false; btn.textContent = '立即订阅';
+  }
+});
+document.getElementById('unsubscribeLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  const email = prompt('请输入要退订的邮箱地址：');
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    window.open(API_URL + '/unsubscribe?email=' + encodeURIComponent(email), '_blank');
+  }
+});
+</script>
 </body>
 </html>
