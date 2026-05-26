@@ -1,37 +1,38 @@
-<!-- pages/index/index.wxml -->
+<!-- pages/index/index.wxml — B站风格 -->
 <view class="page">
-  <!-- Hero + Stats -->
+  <!-- Hero -->
   <view class="hero">
-    <text class="hero-subtitle">中国银行外汇牌价</text>
+    <text class="hero-subtitle">中国银行官方外汇牌价</text>
     <text class="hero-title">{{latestRate}}<text class="hero-unit"> CNY</text></text>
     <text class="hero-label">美元兑人民币 · 中行折算价</text>
     <text class="hero-date">数据更新: {{lastUpdate}}</text>
   </view>
 
+  <!-- Stats -->
   <view class="stats-grid">
-    <view class="stat-card bg-buy">
-      <text class="stat-label">现汇买入价</text>
-      <text class="stat-value">{{buyRate}}</text>
+    <view class="stat-card">
+      <text class="stat-label">现汇买入</text>
+      <text class="stat-value green">{{buyRate}}</text>
       <text class="stat-trend {{buyTrendClass}}">{{buyTrend}}</text>
     </view>
-    <view class="stat-card bg-sell">
-      <text class="stat-label">现汇卖出价</text>
-      <text class="stat-value">{{sellRate}}</text>
+    <view class="stat-card">
+      <text class="stat-label">现汇卖出</text>
+      <text class="stat-value red">{{sellRate}}</text>
       <text class="stat-trend {{sellTrendClass}}">{{sellTrend}}</text>
     </view>
-    <view class="stat-card bg-mid">
-      <text class="stat-label">中行折算价</text>
-      <text class="stat-value">{{midRate}}</text>
+    <view class="stat-card">
+      <text class="stat-label">中行折算</text>
+      <text class="stat-value purple">{{midRate}}</text>
       <text class="stat-trend {{midTrendClass}}">{{midTrend}}</text>
     </view>
-    <view class="stat-card bg-info">
+    <view class="stat-card">
       <text class="stat-label">累计数据</text>
-      <text class="stat-value">{{totalDays}}</text>
-      <text class="stat-trend" style="color:#999;">{{dataRange}}</text>
+      <text class="stat-value" style="color:#000;font-size:38rpx;">{{totalDays}}</text>
+      <text class="stat-trend" style="color:var(--ink-dim);font-size:20rpx;">{{dataRange}}</text>
     </view>
   </view>
 
-  <!-- Chart Section -->
+  <!-- Chart -->
   <view class="chart-section">
     <view class="chart-header">
       <text class="chart-title">汇率走势</text>
@@ -42,19 +43,19 @@
     </view>
     <view class="chart-box">
       <canvas id="lineCanvas" type="2d" style="width:100%;height:100%;"></canvas>
-      <view class="empty-tip" wx:if="{{empty}}">所选时间段无数据</view>
+      <view class="empty-tip" wx:if="{{empty}}">所选时间段暂无数据</view>
     </view>
     <view class="chart-legend">
       <view class="legend-item">
-        <view class="legend-line" style="background:#C4956A;"></view>
+        <view class="legend-line" style="background:var(--bili-pink);"></view>
         <text>折算价</text>
       </view>
       <view class="legend-item">
-        <view class="legend-line dashed" style="background:#27AE60;"></view>
+        <view class="legend-line dashed" style="border-color:var(--bili-blue);"></view>
         <text>买入价</text>
       </view>
       <view class="legend-item">
-        <view class="legend-line dashed" style="background:#E74C3C;"></view>
+        <view class="legend-line dashed" style="border-color:var(--bili-yellow);"></view>
         <text>卖出价</text>
       </view>
     </view>

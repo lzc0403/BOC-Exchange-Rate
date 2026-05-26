@@ -1,22 +1,21 @@
-<!-- pages/history/history.wxml -->
+<!-- pages/history/history.wxml — B站风格 -->
 <view class="page">
   <view class="page-header">
     <text class="page-title">历史数据</text>
-    <button class="download-btn" bindtap="onDownload">下载CSV</button>
+    <button class="btn-pink" bindtap="onDownload">下载 CSV</button>
   </view>
 
-  <!-- Date Range Filter -->
+  <!-- Date Filter — B站 pill style -->
   <view class="date-filter">
     <view class="date-toggle" bindtap="onToggleDateRange">
-      <text class="date-toggle-icon">📅</text>
-      <text>自定义日期范围</text>
+      <text class="date-toggle-label">📅 自定义日期范围</text>
       <text class="toggle-arrow {{showDateRange ? 'arrow-up' : ''}}">▾</text>
     </view>
     <view class="date-panel {{showDateRange ? 'open' : ''}}">
       <picker class="date-picker" mode="date" value="{{startDateVal}}" end="{{endDateVal}}" bindchange="onStartDateChange">
         <view class="picker-btn">{{startDateVal || '开始日期'}}</view>
       </picker>
-      <text class="date-sep">至</text>
+      <text class="date-sep">—</text>
       <picker class="date-picker" mode="date" value="{{endDateVal}}" start="{{startDateVal}}" bindchange="onEndDateChange">
         <view class="picker-btn">{{endDateVal || '结束日期'}}</view>
       </picker>
@@ -28,17 +27,17 @@
     <view class="table">
       <view class="table-row header">
         <text class="cell c1">日期</text>
-        <text class="cell c2">现汇买入</text>
-        <text class="cell c3">现钞买入</text>
-        <text class="cell c4">现汇卖出</text>
-        <text class="cell c5">现钞卖出</text>
-        <text class="cell c6">折算价</text>
+        <text class="cell c2">买入</text>
+        <text class="cell c3">钞买入</text>
+        <text class="cell c4">卖出</text>
+        <text class="cell c5">钞卖出</text>
+        <text class="cell c6">折算</text>
       </view>
       <view class="table-row" wx:for="{{list}}" wx:key="date">
         <text class="cell c1">{{item.date}}</text>
-        <text class="cell c2">{{item.buyRate}}</text>
+        <text class="cell c2 p-buy">{{item.buyRate}}</text>
         <text class="cell c3">{{item.cashBuyRate}}</text>
-        <text class="cell c4">{{item.sellRate}}</text>
+        <text class="cell c4 p-sell">{{item.sellRate}}</text>
         <text class="cell c5">{{item.cashSellRate}}</text>
         <text class="cell c6 mid">{{item.midRate}}</text>
       </view>

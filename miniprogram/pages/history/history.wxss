@@ -1,8 +1,8 @@
-/* pages/history/history.wxss */
+/* pages/history/history.wxss — B站风格 */
 .page {
   min-height: 100vh;
-  background: #FAFAF8;
-  padding: 24rpx;
+  background: var(--canvas);
+  padding: 28rpx 24rpx;
 }
 
 .page-header {
@@ -13,26 +13,29 @@
 }
 
 .page-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #2D3436;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #000;
 }
 
-.download-btn {
-  padding: 10rpx 28rpx;
-  background: #2D3436;
+.btn-pink {
+  padding: 12rpx 32rpx;
+  background: var(--bili-pink);
   color: #fff;
-  border-radius: 12rpx;
+  border-radius: var(--r-pill);
   font-size: 24rpx;
+  font-weight: 600;
   line-height: 1.2;
+  border: none;
+  box-shadow: 0 4rpx 12rpx rgba(251,114,153,0.25);
 }
 
 /* Date Filter */
 .date-filter {
   background: #fff;
-  border-radius: 16rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-lg);
   margin-bottom: 16rpx;
-  box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.03);
   overflow: hidden;
 }
 
@@ -42,18 +45,15 @@
   gap: 8rpx;
   padding: 24rpx;
   font-size: 26rpx;
-  color: #6B6B6B;
+  font-weight: 600;
+  color: var(--ink-muted);
   background: #fff;
-}
-
-.date-toggle-icon {
-  font-size: 28rpx;
 }
 
 .toggle-arrow {
   margin-left: auto;
   font-size: 20rpx;
-  color: #aaa;
+  color: var(--ink-dim);
   transition: transform 0.3s;
 }
 
@@ -80,26 +80,29 @@
 
 .picker-btn {
   padding: 16rpx 20rpx;
-  border: 2rpx solid #E8E8E8;
-  border-radius: 10rpx;
+  border: 2rpx solid var(--border-mid);
+  border-radius: var(--r-pill);
   font-size: 24rpx;
-  color: #333;
+  font-weight: 600;
+  color: #000;
   text-align: center;
-  background: #FAFAF8;
+  background: var(--surface-1);
 }
 
 .date-sep {
   font-size: 24rpx;
-  color: #aaa;
+  color: var(--ink-dim);
 }
 
 .query-btn {
-  padding: 14rpx 36rpx;
-  background: #C4956A;
+  padding: 14rpx 40rpx;
+  background: var(--bili-pink);
   color: #fff;
-  border-radius: 10rpx;
+  border-radius: var(--r-pill);
   font-size: 24rpx;
+  font-weight: 600;
   line-height: 1.2;
+  box-shadow: 0 4rpx 12rpx rgba(251,114,153,0.25);
 }
 
 .table-scroll {
@@ -108,18 +111,18 @@
 
 .table {
   background: #fff;
-  border-radius: 16rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-lg);
   overflow: hidden;
-  box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.03);
 }
 
 .table-row {
   display: flex;
-  border-bottom: 1rpx solid #F5F3EF;
+  border-bottom: 2rpx solid var(--border);
 }
 
 .table-row.header {
-  background: #F5F3EF;
+  background: var(--surface-1);
   position: sticky;
   top: 0;
 }
@@ -127,9 +130,10 @@
 .table-row:last-child { border-bottom: none; }
 
 .cell {
-  padding: 18rpx 10rpx;
-  font-size: 22rpx;
-  color: #555;
+  padding: 20rpx 10rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--ink-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -137,17 +141,20 @@
   text-align: right;
 }
 
-.c1 { width: 22%; text-align: left; }
+.c1 { width: 22%; text-align: left; color: var(--ink-muted); font-weight: 500; }
 .c2 { width: 16%; }
 .c3 { width: 16%; }
 .c4 { width: 16%; }
 .c5 { width: 16%; }
-.c6 { width: 14%; color: #C4956A; font-weight: 600; }
+.c6 { width: 14%; color: var(--bili-pink); font-weight: 700; }
+
+.p-buy { color: var(--bili-blue); font-weight: 600; }
+.p-sell { color: var(--bili-yellow); font-weight: 600; }
 
 .header .cell {
   font-size: 20rpx;
-  color: #888;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--ink-dim);
   text-align: center;
 }
 

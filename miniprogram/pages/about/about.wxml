@@ -1,42 +1,54 @@
-<!-- pages/about/about.wxml -->
+<!-- pages/about/about.wxml — B站风格 -->
 <view class="page">
-  <view class="card">
-    <text class="card-title">Monica的外汇牌价</text>
-    <text class="card-desc">数据源自中国银行官方外汇牌价，每日北京时间9:30自动更新。简洁、准确、及时，为您的汇率研究提供可靠参考。</text>
-  </view>
-
-  <view class="card">
-    <text class="card-title">订阅每日推送</text>
-    <text class="card-desc">订阅后每日获取最新汇率数据推送。</text>
-    <view class="subscribe-form">
-      <input class="subscribe-input" placeholder="输入邮箱地址" bindinput="onEmailInput" />
-      <button class="subscribe-btn" bindtap="onSubscribe" disabled="{{!email}}">订阅</button>
+  <!-- Brand card -->
+  <view class="b-card brand-card">
+    <view class="brand-header">
+      <view class="brand-icon">
+        <text class="brand-icon-text">$</text>
+      </view>
+      <text class="brand-name">Monica的外汇牌价</text>
     </view>
-    <text class="subscribe-msg {{subMsgClass}}">{{subMsg}}</text>
+    <text class="card-desc">数据源自中国银行官方外汇牌价，每日北京时间 9:30 自动更新。简洁、准确、及时，为您的汇率研究提供可靠参考。</text>
   </view>
 
-  <view class="card">
+  <!-- Subscription — B站会员风格 -->
+  <view class="b-card sub-card">
+    <view class="sub-badge">DAILY PUSH</view>
+    <text class="card-title">订阅每日汇率</text>
+    <text class="card-desc">订阅后每日获取最新汇率数据推送，不错过任何波动。</text>
+    <view class="sub-form">
+      <input class="sub-input" placeholder="输入邮箱地址" bindinput="onEmailInput" />
+      <button class="sub-btn" bindtap="onSubscribe" disabled="{{!email}}">订阅</button>
+    </view>
+    <text class="sub-msg {{subMsgClass}}">{{subMsg}}</text>
+  </view>
+
+  <!-- Stats card -->
+  <view class="b-card">
     <text class="card-title">数据概览</text>
-    <view class="info-row">
-      <text class="info-label">数据范围</text>
-      <text class="info-value">{{dataRange}}</text>
-    </view>
-    <view class="info-row">
-      <text class="info-label">累计天数</text>
-      <text class="info-value">{{totalDays}}</text>
-    </view>
-    <view class="info-row">
-      <text class="info-label">最新数据</text>
-      <text class="info-value">{{lastUpdate}}</text>
-    </view>
-    <view class="info-row">
-      <text class="info-label">更新频率</text>
-      <text class="info-value">每日9:30</text>
+    <view class="info-list">
+      <view class="info-row">
+        <text class="info-label">数据范围</text>
+        <text class="info-value">{{dataRange}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">累计天数</text>
+        <text class="info-value">{{totalDays}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">最新数据</text>
+        <text class="info-value">{{lastUpdate}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">更新频率</text>
+        <text class="info-value tag-blue">每日 9:30</text>
+      </view>
     </view>
   </view>
 
-  <view class="card links-card">
-    <button class="site-link" bindtap="onOpenSite" hover-class="link-hover">访问网页版 ›</button>
+  <!-- Link — B站 pill button -->
+  <view class="b-card link-card">
+    <button class="site-btn" bindtap="onOpenSite" hover-class="link-hover">访问网页版 ›</button>
   </view>
 
   <view class="footer-text">数据仅供参考，不构成投资建议</view>

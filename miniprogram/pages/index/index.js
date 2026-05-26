@@ -162,7 +162,7 @@ Page({
     for (let i = 1; i < midData.length; i++) ctx.lineTo(toX(i), toY(midData[i]));
     ctx.lineTo(toX(midData.length - 1), pad.top + chartH);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(196, 149, 106, 0.08)';
+    ctx.fillStyle = 'rgba(251, 114, 153, 0.08)';
     ctx.fill();
 
     // Lines
@@ -175,8 +175,8 @@ Page({
       ctx.stroke();
       ctx.setLineDash([]);
     };
-    drawLine(midData, '#C4956A', 2.5, false);
-    drawLine(data.map(d => d.buyRate), '#27AE60', 1.5, true);
-    drawLine(data.map(d => d.sellRate), '#E74C3C', 1.5, true);
+    drawLine(midData, '#FB7299', 3, false);
+    drawLine(data.map(d => d.buyRate), '#00A1D6', 1.5, true);
+    drawLine(data.map(d => d.sellRate), '#FFC100', 1.5, true);
   }
 });

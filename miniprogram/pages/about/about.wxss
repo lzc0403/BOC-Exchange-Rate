@@ -1,103 +1,194 @@
-/* pages/about/about.wxss */
+/* pages/about/about.wxss — B站风格 */
 .page {
   min-height: 100vh;
-  background: #FAFAF8;
-  padding: 30rpx;
+  background: var(--canvas);
+  padding: 28rpx 24rpx;
 }
 
-.card {
+.b-card {
   background: #fff;
-  border-radius: 16rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-lg);
   padding: 36rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.03);
+  margin-bottom: 20rpx;
 }
 
-.card-title {
+/* Brand card */
+.brand-card {
+  background: linear-gradient(180deg, var(--canvas-tint) 0%, #fff 70%);
+  border-color: var(--bili-pink-soft);
+}
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+.brand-icon {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--bili-pink), var(--bili-purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.brand-icon-text {
   font-size: 32rpx;
-  font-weight: 600;
-  color: #2D3436;
-  display: block;
+  font-weight: 800;
+  color: #fff;
+}
+.brand-name {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #000;
+}
+
+/* Subscription — B站大会员风格 */
+.sub-card {
+  background: linear-gradient(135deg, #FFF5F8 0%, #FFFFFF 100%);
+  border-color: var(--bili-pink);
+  position: relative;
+  overflow: hidden;
+}
+.sub-card::before {
+  content: '';
+  position: absolute;
+  width: 300rpx;
+  height: 300rpx;
+  border-radius: 50%;
+  background: rgba(251, 114, 153, 0.06);
+  top: -120rpx;
+  right: -80rpx;
+  pointer-events: none;
+}
+.sub-badge {
+  display: inline-block;
+  padding: 6rpx 18rpx;
+  background: var(--bili-pink);
+  color: #fff;
+  border-radius: var(--r-pill);
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
   margin-bottom: 16rpx;
 }
 
+.card-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #000;
+  display: block;
+  margin-bottom: 8rpx;
+  position: relative;
+}
+
 .card-desc {
-  font-size: 26rpx;
-  color: #6B6B6B;
+  font-size: 24rpx;
+  color: var(--ink-muted);
   line-height: 1.7;
   display: block;
+  margin-bottom: 20rpx;
 }
 
-.subscribe-form {
+.sub-form {
   display: flex;
-  gap: 16rpx;
-  margin-top: 24rpx;
+  gap: 12rpx;
+  position: relative;
 }
 
-.subscribe-input {
+.sub-input {
   flex: 1;
   padding: 20rpx 24rpx;
-  border: 2rpx solid #E8E8E8;
-  border-radius: 12rpx;
-  font-size: 26rpx;
-  background: #FAFAF8;
-}
-
-.subscribe-btn {
-  padding: 16rpx 40rpx;
-  background: #C4956A;
-  color: #fff;
-  border-radius: 12rpx;
-  font-size: 26rpx;
-  line-height: 1.4;
-}
-
-.subscribe-btn[disabled] { opacity: 0.5; }
-
-.subscribe-msg {
+  border: 2rpx solid var(--border-mid);
+  border-radius: var(--r-pill);
   font-size: 24rpx;
+  font-weight: 500;
+  background: var(--surface-1);
+}
+
+.sub-btn {
+  padding: 16rpx 40rpx;
+  background: var(--bili-pink);
+  color: #fff;
+  border-radius: var(--r-pill);
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.4;
+  box-shadow: 0 4rpx 14rpx rgba(251,114,153,0.3);
+}
+
+.sub-btn[disabled] { opacity: 0.5; box-shadow: none; }
+
+.sub-msg {
+  font-size: 22rpx;
   display: block;
   margin-top: 16rpx;
-  min-height: 40rpx;
+  min-height: 36rpx;
 }
 
-.success { color: #27AE60; }
-.error { color: #E74C3C; }
+.success { color: var(--bili-green); }
+.error { color: var(--bili-pink); }
 
+/* Info list */
+.info-list {
+  margin-top: 16rpx;
+}
 .info-row {
   display: flex;
   justify-content: space-between;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #F5F3EF;
+  align-items: center;
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid var(--border);
 }
-
 .info-row:last-child { border-bottom: none; }
 
-.info-label { font-size: 26rpx; color: #6B6B6B; }
-.info-value { font-size: 26rpx; font-weight: 600; color: #2D3436; }
+.info-label {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
 
-.links-card {
+.info-value {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #000;
+}
+
+.tag-blue {
+  display: inline-block;
+  padding: 6rpx 18rpx;
+  background: var(--bili-blue-soft);
+  color: var(--bili-blue);
+  border-radius: var(--r-pill);
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+/* Link card */
+.link-card {
   padding: 0;
   overflow: hidden;
 }
 
-.site-link {
+.site-btn {
   width: 100%;
   padding: 32rpx;
   background: #fff;
-  color: #C4956A;
+  color: var(--bili-pink);
   font-size: 28rpx;
-  font-weight: 500;
+  font-weight: 700;
   text-align: center;
   border: none;
   line-height: 1;
+  border-radius: var(--r-lg);
 }
 
-.link-hover { background: #FAF5F0; }
+.link-hover { background: var(--surface-1); }
 
 .footer-text {
   text-align: center;
   font-size: 22rpx;
-  color: #9A9A9A;
+  color: var(--ink-dim);
   margin: 40rpx 0;
 }
