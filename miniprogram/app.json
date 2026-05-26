@@ -40,8 +40,5 @@
       }
     ]
   },
-  "usingComponents": {
-    "rate-card": "/components/rate-card/rate-card"
-  },
   "sitemapLocation": "sitemap.json"
 }
