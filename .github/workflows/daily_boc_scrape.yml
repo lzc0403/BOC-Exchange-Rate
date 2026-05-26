@@ -2,8 +2,8 @@ name: Daily BOC Exchange Rate Scraping
 
 on:
   schedule:
-    # 每天上午10:30执行
-    - cron: '30 2 * * *'  # UTC时间，对应北京时间10:30
+    # 每天上午09:30执行（提前1小时，防止队列延迟导致下午才跑）
+    - cron: '30 1 * * *'  # UTC时间，对应北京时间09:30
   workflow_dispatch:  # 支持手动触发
     inputs:
       mode:
