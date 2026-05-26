@@ -850,19 +850,6 @@
                         <button class="time-btn" data-days="0">全部</button>
                     </div>
                 </div>
-                <div class="date-range-bar">
-                    <div class="date-range-toggle" id="dateRangeToggle">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
-                        自定义日期范围
-                        <svg class="toggle-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </div>
-                    <div class="date-range-panel" id="dateRangePanel">
-                        <input type="date" class="date-input" id="startDate">
-                        <span class="date-sep">—</span>
-                        <input type="date" class="date-input" id="endDate">
-                        <button class="date-query-btn" id="dateQueryBtn">查询</button>
-                    </div>
-                </div>
                 <div class="chart-wrap"><canvas id="chart"></canvas></div>
             </div>
         </section>
@@ -882,6 +869,19 @@
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
                         下载完整数据 (CSV)
                     </a>
+                </div>
+                <div class="date-range-bar" style="padding-top:0;border-bottom:none;margin-bottom:12px;">
+                    <div class="date-range-toggle" id="dateRangeToggle">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+                        自定义日期范围
+                        <svg class="toggle-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="date-range-panel" id="dateRangePanel">
+                        <input type="date" class="date-input" id="startDate">
+                        <span class="date-sep">—</span>
+                        <input type="date" class="date-input" id="endDate">
+                        <button class="date-query-btn" id="dateQueryBtn">查询</button>
+                    </div>
                 </div>
                 <div style="overflow-x: auto;">
                     <table class="data-table">
@@ -1295,23 +1295,14 @@
             `).join('');
         }
 
-        // Time filter buttons
+        // Time filter buttons (chart only)
         document.querySelectorAll('.time-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 const days = parseInt(this.dataset.days);
                 initChart(days);
-                updateTable(days);
                 updateStats();
-                // Clear date inputs when preset clicked
-                document.getElementById('startDate').value = '';
-                document.getElementById('endDate').value = '';
-                // Update table title
-                const titleEl = document.querySelector('.table-title');
-                if (titleEl) {
-                    titleEl.textContent = days > 0 ? `最近${days}天数据` : '全部数据';
-                }
             });
         });
 
@@ -1322,28 +1313,18 @@
             this.classList.toggle('open');
         });
 
-        // Custom date query
+        // Custom date query (for table only)
         function handleDateQuery() {
             const startVal = document.getElementById('startDate').value;
             const endVal = document.getElementById('endDate').value;
             
-            if (!startVal || !endVal) {
-                // If inputs empty, reset to active preset or all
-                const active = document.querySelector('.time-btn.active');
-                if (active) {
-                    active.click();
-                }
-                return;
-            }
+            if (!startVal || !endVal) return;
             
             if (startVal > endVal) {
                 alert('开始日期不能晚于结束日期');
                 return;
             }
             
-            // Deactivate preset buttons
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-            initChart(0, { start: startVal, end: endVal });
             updateTable(0, { start: startVal, end: endVal });
             const titleEl = document.querySelector('.table-title');
             if (titleEl) titleEl.textContent = `${startVal} ~ ${endVal}`;
