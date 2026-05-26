@@ -1,0 +1,17 @@
+/* app.wxss */
+page {
+  font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: #FAFAF8;
+  color: #2D3436;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+button::after {
+  border: none;
+}

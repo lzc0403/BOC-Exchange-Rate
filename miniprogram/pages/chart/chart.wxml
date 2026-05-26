@@ -1,0 +1,31 @@
+<!-- pages/chart/chart.wxml -->
+<view class="page">
+  <!-- Time Filter -->
+  <view class="time-filter">
+    <view class="time-btn {{activeDays === 30 ? 'active' : ''}}" data-days="30" bindtap="onTimeFilter">近30天</view>
+    <view class="time-btn {{activeDays === 90 ? 'active' : ''}}" data-days="90" bindtap="onTimeFilter">近3月</view>
+    <view class="time-btn {{activeDays === 180 ? 'active' : ''}}" data-days="180" bindtap="onTimeFilter">近6月</view>
+    <view class="time-btn {{activeDays === 365 ? 'active' : ''}}" data-days="365" bindtap="onTimeFilter">近1年</view>
+    <view class="time-btn {{activeDays === 0 ? 'active' : ''}}" data-days="0" bindtap="onTimeFilter">全部</view>
+  </view>
+
+  <view class="chart-box">
+    <canvas id="lineCanvas" type="2d" style="width:100%;height:100%;"></canvas>
+    <view class="empty-tip" wx:if="{{empty}}">所选时间段无数据</view>
+  </view>
+
+  <view class="legend">
+    <view class="legend-item">
+      <view class="legend-dot" style="background:#C4956A;"></view>
+      <text>中行折算价</text>
+    </view>
+    <view class="legend-item">
+      <view class="legend-dot dashed" style="background:#27AE60;"></view>
+      <text>现汇买入价</text>
+    </view>
+    <view class="legend-item">
+      <view class="legend-dot dashed" style="background:#E74C3C;"></view>
+      <text>现汇卖出价</text>
+    </view>
+  </view>
+</view>

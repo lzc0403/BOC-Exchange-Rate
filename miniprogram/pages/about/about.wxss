@@ -1,0 +1,107 @@
+/* pages/about/about.wxss */
+.page {
+  min-height: 100vh;
+  background: #FAFAF8;
+  padding: 30rpx;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 36rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 16rpx rgba(0,0,0,0.03);
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #2D3436;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.card-desc {
+  font-size: 26rpx;
+  color: #6B6B6B;
+  line-height: 1.7;
+  display: block;
+}
+
+.subscribe-form {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.subscribe-input {
+  flex: 1;
+  padding: 20rpx 24rpx;
+  border: 2rpx solid #E8E8E8;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  background: #FAFAF8;
+}
+
+.subscribe-btn {
+  padding: 16rpx 40rpx;
+  background: #C4956A;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  line-height: 1.4;
+}
+
+.subscribe-btn[disabled] {
+  opacity: 0.5;
+}
+
+.subscribe-msg {
+  font-size: 24rpx;
+  display: block;
+  margin-top: 16rpx;
+  min-height: 40rpx;
+}
+
+.success { color: #27AE60; }
+.error { color: #E74C3C; }
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #F5F3EF;
+}
+
+.info-row:last-child { border-bottom: none; }
+
+.info-label {
+  font-size: 26rpx;
+  color: #6B6B6B;
+}
+
+.info-value {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #2D3436;
+}
+
+.links {
+  text-align: center;
+  margin: 40rpx 0;
+}
+
+.link {
+  display: block;
+  font-size: 24rpx;
+  color: #C4956A;
+  margin-bottom: 12rpx;
+  text-decoration: underline;
+}
+
+.footer-text {
+  text-align: center;
+  font-size: 22rpx;
+  color: #9A9A9A;
+  margin: 40rpx 0;
+}

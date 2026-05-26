@@ -1,0 +1,47 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/chart/chart",
+    "pages/history/history",
+    "pages/about/about"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#2D3436",
+    "navigationBarTitleText": "Monica的外汇牌价",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#FAFAF8",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#9A9A9A",
+    "selectedColor": "#C4956A",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "牌价",
+        "iconPath": "images/tab-icons/rate.png"
+      },
+      {
+        "pagePath": "pages/chart/chart",
+        "text": "走势",
+        "iconPath": "images/tab-icons/chart.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史",
+        "iconPath": "images/tab-icons/history.png"
+      },
+      {
+        "pagePath": "pages/about/about",
+        "text": "关于",
+        "iconPath": "images/tab-icons/about.png"
+      }
+    ]
+  },
+  "usingComponents": {
+    "rate-card": "/components/rate-card/rate-card"
+  },
+  "sitemapLocation": "sitemap.json"
+}

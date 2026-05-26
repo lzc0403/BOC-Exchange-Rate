@@ -1,0 +1,44 @@
+<!-- pages/about/about.wxml -->
+<view class="page">
+  <view class="card">
+    <text class="card-title">Monica的外汇牌价</text>
+    <text class="card-desc">数据源自中国银行官方外汇牌价，每日北京时间10:30自动更新。简洁、准确、及时，为您的汇率研究提供可靠参考。</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">订阅每日推送</text>
+    <text class="card-desc">订阅后每日获取最新汇率数据推送，不再错过任何汇率波动。</text>
+    <view class="subscribe-form">
+      <input class="subscribe-input" placeholder="输入邮箱地址" bindinput="onEmailInput" />
+      <button class="subscribe-btn" bindtap="onSubscribe" disabled="{{!email}}">订阅</button>
+    </view>
+    <text class="subscribe-msg {{subMsgClass}}">{{subMsg}}</text>
+  </view>
+
+  <view class="card">
+    <text class="card-title">数据概览</text>
+    <view class="info-row">
+      <text class="info-label">数据范围</text>
+      <text class="info-value">{{dataRange}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">累计天数</text>
+      <text class="info-value">{{totalDays}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">最新数据</text>
+      <text class="info-value">{{lastUpdate}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">更新频率</text>
+      <text class="info-value">每日10:30</text>
+    </view>
+  </view>
+
+  <view class="links">
+    <text class="link" bindtap="onOpenSite">访问网页版</text>
+    <text class="link" bindtap="onCopyLink">https://lzc0403.github.io/BOC-Exchange-Rate/</text>
+  </view>
+
+  <view class="footer-text">数据仅供参考，不构成投资建议</view>
+</view>

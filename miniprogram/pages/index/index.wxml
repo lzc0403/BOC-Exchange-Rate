@@ -1,0 +1,32 @@
+<!-- pages/index/index.wxml -->
+<view class="page">
+  <view class="hero">
+    <text class="hero-subtitle">中国银行外汇牌价</text>
+    <text class="hero-title">{{latestRate}}<text class="hero-unit"> CNY</text></text>
+    <text class="hero-label">美元兑人民币 · 中行折算价</text>
+    <text class="hero-date">数据更新: {{lastUpdate}}</text>
+  </view>
+
+  <view class="stats-grid">
+    <view class="stat-card bg-buy">
+      <text class="stat-label">现汇买入价</text>
+      <text class="stat-value">{{buyRate}}</text>
+      <text class="stat-trend {{buyTrendClass}}">{{buyTrend}}</text>
+    </view>
+    <view class="stat-card bg-sell">
+      <text class="stat-label">现汇卖出价</text>
+      <text class="stat-value">{{sellRate}}</text>
+      <text class="stat-trend {{sellTrendClass}}">{{sellTrend}}</text>
+    </view>
+    <view class="stat-card bg-mid">
+      <text class="stat-label">中行折算价</text>
+      <text class="stat-value">{{midRate}}</text>
+      <text class="stat-trend {{midTrendClass}}">{{midTrend}}</text>
+    </view>
+    <view class="stat-card bg-info">
+      <text class="stat-label">累计数据</text>
+      <text class="stat-value">{{totalDays}}</text>
+      <text class="stat-trend" style="color:#999;">{{dataRange}}</text>
+    </view>
+  </view>
+</view>
