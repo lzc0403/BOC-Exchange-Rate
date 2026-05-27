@@ -112,8 +112,8 @@ a { color: inherit; text-decoration: none; }
 
 /* Section */
 .section { padding: 72px 0; }
-.section-soft { background: var(--canvas-soft); }
-.section-head { margin-bottom: 40px; }
+.section-soft { background: var(--canvas); }
+.section-head { margin-bottom: 40px; padding: 0 8px; }
 .section-head p.eyebrow { font-size: 13px; letter-spacing: -0.39px; color: var(--primary); margin-bottom: 12px; font-weight: 400; }
 .section-head h2 { font-weight: 300; font-size: clamp(24px, 3.4vw, 36px); line-height: 1.15; letter-spacing: -0.8px; margin: 0 0 12px; }
 .section-head p.desc { font-size: 16px; color: var(--ink-secondary); max-width: 560px; line-height: 1.5; margin: 0; }
@@ -138,11 +138,11 @@ a { color: inherit; text-decoration: none; }
 
 /* Chart */
 .chart-card {
-  background: var(--canvas); border: 1px solid var(--hairline); border-radius: 12px;
-  padding: 32px; box-shadow: var(--shadow-1);
+  background: var(--canvas-soft); border: 1px solid var(--hairline); border-radius: 16px;
+  padding: 36px; box-shadow: var(--shadow-1);
 }
 .chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
-.chart-head h3 { font-weight: 300; font-size: 22px; letter-spacing: -0.22px; }
+.chart-head h3 { font-weight: 400; font-size: 18px; letter-spacing: -0.18px; color: var(--ink-secondary); }
 .time-filter { display: flex; gap: 6px; flex-wrap: wrap; }
 .time-btn {
   padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 9999px;
@@ -152,7 +152,7 @@ a { color: inherit; text-decoration: none; }
 }
 .time-btn:hover { border-color: var(--primary); color: var(--primary); }
 .time-btn.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-.chart-wrap { position: relative; width: 100%; }
+.chart-wrap { position: relative; width: 100%; padding: 8px 0; }
 #chart { width: 100% !important; }
 
 /* Table */
@@ -341,7 +341,7 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
   </section>
 
   <!-- Chart -->
-  <section class="section section-soft animate">
+  <section class="section animate">
     <div class="section-head">
       <p class="eyebrow">汇率走势</p>
       <h2>美元兑人民币 中行折算价</h2>
