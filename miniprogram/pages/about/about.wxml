@@ -1,4 +1,4 @@
-<!-- pages/about/about.wxml — B站风格 -->
+<!-- pages/about/about.wxml — Stripe 风格 -->
 <view class="page">
   <!-- Brand card -->
   <view class="b-card brand-card">

@@ -1,33 +1,33 @@
-/* B站风格全局样式 */
+/* Stripe 风格全局样式 */
 page {
-  --bili-pink: #FB7299;
-  --bili-pink-deep: #E85B83;
-  --bili-pink-soft: rgba(251, 114, 153, 0.1);
-  --bili-blue: #00A1D6;
-  --bili-blue-soft: rgba(0, 161, 214, 0.1);
-  --bili-yellow: #FFC100;
-  --bili-purple: #9D5EE3;
-  --bili-green: #6BCB77;
+  --primary: #533afd;
+  --primary-deep: #4434d4;
+  --primary-soft: #665efd;
+  --primary-subdued: #b9b9f9;
+  --brand-dark: #1c1e54;
+  --green: #0ca678;
+  --green-bg: #e6fcf5;
+  --red: #e03131;
+  --red-bg: #fff5f5;
   --canvas: #ffffff;
-  --canvas-tint: #FFF6F9;
-  --surface-1: #FDF2F6;
-  --surface-2: #FCE4EC;
-  --ink: #18191c;
-  --ink-soft: #424650;
-  --ink-muted: #61666d;
-  --ink-dim: #9499a0;
-  --border: #f1f2f3;
-  --border-mid: #e3e5e7;
-  --shadow-card: 0 4rpx 16rpx rgba(251, 114, 153, 0.1);
+  --canvas-soft: #f6f9fc;
+  --hairline: #e3e8ee;
+  --ink: #0d253d;
+  --ink-secondary: #273951;
+  --ink-mute: #64748d;
+  --ink-dim: #94a3b8;
+  --shadow-card: 0 1px 3px rgba(0,55,112,.08);
+  --shadow-2: 0 8px 24px rgba(0,55,112,.08), 0 2px 6px rgba(0,55,112,.04);
   --r-sm: 6rpx;
   --r-md: 10rpx;
-  --r-lg: 16rpx;
-  --r-xl: 24rpx;
-  --r-pill: 999rpx;
+  --r-lg: 12rpx;
+  --r-xl: 16rpx;
+  --r-pill: 9999rpx;
   --font: "Inter", "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
   background: var(--canvas);
   font-family: var(--font);
   color: var(--ink);
   font-size: 28rpx;
-  line-height: 1.6;
+  line-height: 1.4;
+  font-weight: 300;
 }

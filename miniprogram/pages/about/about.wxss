@@ -1,4 +1,4 @@
-/* pages/about/about.wxss — B站风格 */
+/* pages/about/about.wxss — Stripe 风格 */
 .page {
   min-height: 100vh;
   background: var(--canvas);
@@ -6,17 +6,25 @@
 }
 
 .b-card {
-  background: #fff;
-  border: 2rpx solid var(--border);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   padding: 36rpx;
   margin-bottom: 20rpx;
+  box-shadow: var(--shadow-card);
 }
 
 /* Brand card */
 .brand-card {
-  background: linear-gradient(180deg, var(--canvas-tint) 0%, #fff 70%);
-  border-color: var(--bili-pink-soft);
+  position: relative;
+  overflow: hidden;
+}
+.brand-card::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-subdued), var(--primary));
 }
 .brand-header {
   display: flex;
@@ -28,65 +36,63 @@
   width: 60rpx;
   height: 60rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--bili-pink), var(--bili-purple));
+  background: linear-gradient(135deg, var(--primary), var(--primary-deep));
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .brand-icon-text {
   font-size: 32rpx;
-  font-weight: 800;
+  font-weight: 500;
   color: #fff;
 }
 .brand-name {
-  font-size: 34rpx;
-  font-weight: 700;
-  color: #000;
+  font-size: 32rpx;
+  font-weight: 400;
+  color: var(--ink);
 }
 
-/* Subscription — B站大会员风格 */
+/* Subscription */
 .sub-card {
-  background: linear-gradient(135deg, #FFF5F8 0%, #FFFFFF 100%);
-  border-color: var(--bili-pink);
+  background: var(--canvas);
+  border-color: var(--hairline);
   position: relative;
   overflow: hidden;
+  text-align: center;
 }
-.sub-card::before {
-  content: '';
+.sub-card::after {
+  content: "";
   position: absolute;
-  width: 300rpx;
-  height: 300rpx;
-  border-radius: 50%;
-  background: rgba(251, 114, 153, 0.06);
-  top: -120rpx;
-  right: -80rpx;
-  pointer-events: none;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-subdued), var(--primary));
 }
 .sub-badge {
   display: inline-block;
   padding: 6rpx 18rpx;
-  background: var(--bili-pink);
+  background: var(--primary);
   color: #fff;
   border-radius: var(--r-pill);
   font-size: 20rpx;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 2rpx;
   margin-bottom: 16rpx;
 }
 
 .card-title {
-  font-size: 30rpx;
-  font-weight: 700;
-  color: #000;
+  font-size: 28rpx;
+  font-weight: 400;
+  color: var(--ink);
   display: block;
   margin-bottom: 8rpx;
-  position: relative;
+  letter-spacing: -0.4rpx;
 }
 
 .card-desc {
   font-size: 24rpx;
-  color: var(--ink-muted);
-  line-height: 1.7;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+  font-weight: 300;
   display: block;
   margin-bottom: 20rpx;
 }
@@ -100,25 +106,24 @@
 .sub-input {
   flex: 1;
   padding: 20rpx 24rpx;
-  border: 2rpx solid var(--border-mid);
-  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
   font-size: 24rpx;
-  font-weight: 500;
-  background: var(--surface-1);
+  font-weight: 300;
+  background: var(--canvas);
 }
 
 .sub-btn {
   padding: 16rpx 40rpx;
-  background: var(--bili-pink);
+  background: var(--primary);
   color: #fff;
   border-radius: var(--r-pill);
   font-size: 24rpx;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.4;
-  box-shadow: 0 4rpx 14rpx rgba(251,114,153,0.3);
 }
 
-.sub-btn[disabled] { opacity: 0.5; box-shadow: none; }
+.sub-btn[disabled] { opacity: 0.5; }
 
 .sub-msg {
   font-size: 22rpx;
@@ -127,8 +132,8 @@
   min-height: 36rpx;
 }
 
-.success { color: var(--bili-green); }
-.error { color: var(--bili-pink); }
+.success { color: var(--green); }
+.error { color: var(--red); }
 
 /* Info list */
 .info-list {
@@ -139,30 +144,30 @@
   justify-content: space-between;
   align-items: center;
   padding: 18rpx 0;
-  border-bottom: 2rpx solid var(--border);
+  border-bottom: 1px solid var(--hairline);
 }
 .info-row:last-child { border-bottom: none; }
 
 .info-label {
-  font-size: 26rpx;
-  font-weight: 500;
-  color: var(--ink-muted);
+  font-size: 24rpx;
+  font-weight: 400;
+  color: var(--ink-mute);
 }
 
 .info-value {
-  font-size: 26rpx;
-  font-weight: 700;
-  color: #000;
+  font-size: 24rpx;
+  font-weight: 400;
+  color: var(--ink);
 }
 
 .tag-blue {
   display: inline-block;
   padding: 6rpx 18rpx;
-  background: var(--bili-blue-soft);
-  color: var(--bili-blue);
+  background: rgba(83,58,253,.06);
+  color: var(--primary);
   border-radius: var(--r-pill);
   font-size: 22rpx;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* Link card */
@@ -174,17 +179,17 @@
 .site-btn {
   width: 100%;
   padding: 32rpx;
-  background: #fff;
-  color: var(--bili-pink);
+  background: var(--canvas);
+  color: var(--primary);
   font-size: 28rpx;
-  font-weight: 700;
+  font-weight: 400;
   text-align: center;
   border: none;
   line-height: 1;
   border-radius: var(--r-lg);
 }
 
-.link-hover { background: var(--surface-1); }
+.link-hover { background: var(--canvas-soft); }
 
 .footer-text {
   text-align: center;

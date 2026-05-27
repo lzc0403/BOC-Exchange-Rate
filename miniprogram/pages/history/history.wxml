@@ -1,8 +1,8 @@
-<!-- pages/history/history.wxml — B站风格 -->
+<!-- pages/history/history.wxml — Stripe 风格 -->
 <view class="page">
   <view class="page-header">
     <text class="page-title">历史数据</text>
-    <button class="btn-pink" bindtap="onDownload">下载 CSV</button>
+    <button class="btn-primary" bindtap="onDownload">下载 CSV</button>
   </view>
 
   <!-- Date Filter — B站 pill style -->

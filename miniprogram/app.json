@@ -5,16 +5,16 @@
     "pages/about/about"
   ],
   "window": {
-    "navigationBarBackgroundColor": "#2D3436",
+    "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTitleText": "Monica的外汇牌价",
-    "navigationBarTextStyle": "white",
-    "backgroundColor": "#FAFAF8",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f9fc",
     "backgroundTextStyle": "light"
   },
   "tabBar": {
-    "color": "#9A9A9A",
-    "selectedColor": "#C4956A",
-    "backgroundColor": "#FFFFFF",
+    "color": "#64748d",
+    "selectedColor": "#533afd",
+    "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
       {

@@ -1,4 +1,4 @@
-<!-- pages/index/index.wxml — B站风格 -->
+<!-- pages/index/index.wxml — Stripe 风格 -->
 <view class="page">
   <!-- Hero -->
   <view class="hero">
@@ -27,7 +27,7 @@
     </view>
     <view class="stat-card">
       <text class="stat-label">累计数据</text>
-      <text class="stat-value" style="color:#000;font-size:38rpx;">{{totalDays}}</text>
+      <text class="stat-value" style="color:var(--ink);font-size:38rpx;">{{totalDays}}</text>
       <text class="stat-trend" style="color:var(--ink-dim);font-size:20rpx;">{{dataRange}}</text>
     </view>
   </view>
@@ -47,15 +47,15 @@
     </view>
     <view class="chart-legend">
       <view class="legend-item">
-        <view class="legend-line" style="background:var(--bili-pink);"></view>
+        <view class="legend-line" style="background:var(--primary);"></view>
         <text>折算价</text>
       </view>
       <view class="legend-item">
-        <view class="legend-line dashed" style="border-color:var(--bili-blue);"></view>
+        <view class="legend-line dashed" style="border-color:var(--green);"></view>
         <text>买入价</text>
       </view>
       <view class="legend-item">
-        <view class="legend-line dashed" style="border-color:var(--bili-yellow);"></view>
+        <view class="legend-line dashed" style="border-color:var(--red);"></view>
         <text>卖出价</text>
       </view>
     </view>

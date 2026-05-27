@@ -1,4 +1,4 @@
-/* pages/history/history.wxss — B站风格 */
+/* pages/history/history.wxss — Stripe 风格 */
 .page {
   min-height: 100vh;
   background: var(--canvas);
@@ -13,30 +13,32 @@
 }
 
 .page-title {
-  font-size: 34rpx;
-  font-weight: 700;
-  color: #000;
+  font-size: 32rpx;
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: -0.4rpx;
 }
 
-.btn-pink {
+.btn-primary {
   padding: 12rpx 32rpx;
-  background: var(--bili-pink);
+  background: var(--ink);
   color: #fff;
   border-radius: var(--r-pill);
   font-size: 24rpx;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.2;
   border: none;
-  box-shadow: 0 4rpx 12rpx rgba(251,114,153,0.25);
+  box-shadow: var(--shadow-card);
 }
 
 /* Date Filter */
 .date-filter {
-  background: #fff;
-  border: 2rpx solid var(--border);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   margin-bottom: 16rpx;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .date-toggle {
@@ -44,10 +46,10 @@
   align-items: center;
   gap: 8rpx;
   padding: 24rpx;
-  font-size: 26rpx;
-  font-weight: 600;
-  color: var(--ink-muted);
-  background: #fff;
+  font-size: 24rpx;
+  font-weight: 400;
+  color: var(--ink-mute);
+  background: var(--canvas);
 }
 
 .toggle-arrow {
@@ -80,13 +82,13 @@
 
 .picker-btn {
   padding: 16rpx 20rpx;
-  border: 2rpx solid var(--border-mid);
-  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
   font-size: 24rpx;
-  font-weight: 600;
-  color: #000;
+  font-weight: 400;
+  color: var(--ink);
   text-align: center;
-  background: var(--surface-1);
+  background: var(--canvas);
 }
 
 .date-sep {
@@ -96,13 +98,12 @@
 
 .query-btn {
   padding: 14rpx 40rpx;
-  background: var(--bili-pink);
+  background: var(--primary);
   color: #fff;
   border-radius: var(--r-pill);
   font-size: 24rpx;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.2;
-  box-shadow: 0 4rpx 12rpx rgba(251,114,153,0.25);
 }
 
 .table-scroll {
@@ -110,19 +111,20 @@
 }
 
 .table {
-  background: #fff;
-  border: 2rpx solid var(--border);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .table-row {
   display: flex;
-  border-bottom: 2rpx solid var(--border);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .table-row.header {
-  background: var(--surface-1);
+  background: var(--canvas-soft);
   position: sticky;
   top: 0;
 }
@@ -132,30 +134,33 @@
 .cell {
   padding: 20rpx 10rpx;
   font-size: 24rpx;
-  font-weight: 600;
-  color: var(--ink-soft);
+  font-weight: 300;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
   text-align: right;
+  font-feature-settings: "ss01", "tnum";
 }
 
-.c1 { width: 22%; text-align: left; color: var(--ink-muted); font-weight: 500; }
+.c1 { width: 22%; text-align: left; color: var(--ink-mute); font-weight: 400; }
 .c2 { width: 16%; }
 .c3 { width: 16%; }
 .c4 { width: 16%; }
 .c5 { width: 16%; }
-.c6 { width: 14%; color: var(--bili-pink); font-weight: 700; }
+.c6 { width: 14%; color: var(--primary); font-weight: 400; }
 
-.p-buy { color: var(--bili-blue); font-weight: 600; }
-.p-sell { color: var(--bili-yellow); font-weight: 600; }
+.p-buy { color: var(--green); font-weight: 400; }
+.p-sell { color: var(--red); font-weight: 400; }
 
 .header .cell {
   font-size: 20rpx;
-  font-weight: 600;
-  color: var(--ink-dim);
+  font-weight: 400;
+  color: var(--ink-mute);
   text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .header .c1 { text-align: left; }
