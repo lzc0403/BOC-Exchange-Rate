@@ -1,5 +1,7 @@
 # BOC Exchange Rate
 
+[中文版](README_CN.md)
+
 Automated Bank of China USD/CNY exchange rate scraper with web dashboard, email notifications, and WeChat Mini Program.
 
 ## Features
