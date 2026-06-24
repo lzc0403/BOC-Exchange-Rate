@@ -187,3 +187,26 @@
   width: 24rpx;
   background: transparent !important;
 }
+
+/* 币种切换 */
+.currency-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+.currency-tab {
+  padding: 12rpx 32rpx;
+  border-radius: var(--r-pill);
+  font-size: 26rpx;
+  font-weight: 400;
+  color: var(--primary);
+  background: var(--canvas);
+  border: 1px solid var(--primary);
+  transition: all .15s;
+}
+.currency-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}

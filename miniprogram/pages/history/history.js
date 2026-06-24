@@ -1,8 +1,15 @@
 // pages/history/history.js
 const app = getApp();
+const { CURRENCY_LABELS } = require('../../utils/api');
 
 Page({
   data: {
+    currency: 'usd',
+    currencyLabel: '美元',
+    currencies: [
+      { key: 'usd', label: '🇺🇸 美元' },
+      { key: 'hkd', label: '🇭🇰 港币' }
+    ],
     list: [],
     showDateRange: false,
     startDateVal: '',
@@ -10,7 +17,18 @@ Page({
   },
 
   onShow() {
+    this.setData({ currency: app.globalData.currency || 'usd' });
     this.loadHistory();
+  },
+
+  onCurrencyTap(e) {
+    const currency = e.currentTarget.dataset.key;
+    if (currency === this.data.currency) return;
+    this.setData({ currency, currencyLabel: CURRENCY_LABELS[currency].name });
+    app.globalData.currency = currency;
+    app.globalData.allData = [];
+    app.loadExchangeData();
+    setTimeout(() => this.loadHistory(), 500);
   },
 
   loadHistory(customStart, customEnd) {

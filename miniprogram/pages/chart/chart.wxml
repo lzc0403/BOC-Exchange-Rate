@@ -1,5 +1,13 @@
 <!-- pages/chart/chart.wxml -->
 <view class="page">
+  <!-- 币种切换 -->
+  <view class="currency-tabs">
+    <view wx:for="{{currencies}}" wx:key="key"
+      class="currency-tab {{currency === item.key ? 'active' : ''}}"
+      data-key="{{item.key}}" bindtap="onCurrencyTap">
+      {{item.label}}
+    </view>
+  </view>
   <!-- Time Filter -->
   <view class="time-filter">
     <view class="time-btn {{activeDays === 30 ? 'active' : ''}}" data-days="30" bindtap="onTimeFilter">近30天</view>

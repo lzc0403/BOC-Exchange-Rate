@@ -1,8 +1,15 @@
 // pages/index/index.js
 const app = getApp();
+const { CURRENCY_LABELS } = require('../../utils/api');
 
 Page({
   data: {
+    currency: 'usd',
+    currencyLabel: '美元兑人民币',
+    currencies: [
+      { key: 'usd', label: '🇺🇸 美元' },
+      { key: 'hkd', label: '🇭🇰 港币' }
+    ],
     latestRate: '--',
     buyRate: '--', sellRate: '--', midRate: '--',
     lastUpdate: '加载中...',
@@ -15,6 +22,15 @@ Page({
   },
 
   onShow() {
+    this.loadData();
+  },
+
+  onCurrencyTap(e) {
+    const currency = e.currentTarget.dataset.key;
+    if (currency === this.data.currency) return;
+    this.setData({ currency, currencyLabel: CURRENCY_LABELS[currency].pair });
+    app.globalData.currency = currency;
+    app.globalData.allData = [];
     this.loadData();
   },
 

@@ -1,11 +1,21 @@
 // utils/api.js
-const CSV_URL = 'https://lzc0403.github.io/BOC-Exchange-Rate/boc_usd_cny.csv';
+const BASE_URL = 'https://lzc0403.github.io/BOC-Exchange-Rate/';
+const CSV_FILES = {
+  usd: 'boc_usd_cny.csv',
+  hkd: 'boc_hkd_cny.csv'
+};
+const CURRENCY_LABELS = {
+  usd: { name: '美元', pair: '美元兑人民币', flag: '🇺🇸' },
+  hkd: { name: '港币', pair: '港币兑人民币', flag: '🇭🇰' }
+};
 const SUBSCRIBE_API = 'https://boc-subscription-api.lg111481.workers.dev';
 
-function loadAllData() {
+function loadAllData(currency) {
+  currency = currency || 'usd';
+  const csvFile = CSV_FILES[currency] || CSV_FILES.usd;
   return new Promise((resolve, reject) => {
     wx.request({
-      url: CSV_URL,
+      url: BASE_URL + csvFile,
       success(res) {
         const text = res.data;
         const lines = text.trim().split('\n');
@@ -43,4 +53,4 @@ function subscribeEmail(email) {
   });
 }
 
-module.exports = { loadAllData, subscribeEmail };
+module.exports = { loadAllData, subscribeEmail, CURRENCY_LABELS, CSV_FILES };

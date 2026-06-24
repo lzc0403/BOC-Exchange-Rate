@@ -5,6 +5,15 @@
     <button class="btn-primary" bindtap="onDownload">下载 CSV</button>
   </view>
 
+  <!-- 币种切换 -->
+  <view class="currency-tabs">
+    <view wx:for="{{currencies}}" wx:key="key"
+      class="currency-tab {{currency === item.key ? 'active' : ''}}"
+      data-key="{{item.key}}" bindtap="onCurrencyTap">
+      {{item.label}}
+    </view>
+  </view>
+
   <!-- Date Filter — B站 pill style -->
   <view class="date-filter">
     <view class="date-toggle" bindtap="onToggleDateRange">

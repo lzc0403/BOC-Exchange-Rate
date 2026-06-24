@@ -40,7 +40,12 @@ else:
     START_DATE = DEFAULT_START
     END_DATE   = date.today() - timedelta(days=1)
 TARGET_HOUR = 10          # 优先抓每天 10:00 之后最早一条
-OUTPUT_FILE = "boc_usd_cny.csv"
+
+# 多币种配置：币种中文名 → 输出文件名
+CURRENCIES = {
+    "美元": "boc_usd_cny.csv",
+    "港币": "boc_hkd_cny.csv",
+}
 
 MAX_DAY_ATTEMPTS = 8      # 单日最大重试次数
 PAGE_RETRY       = 3      # 单页最大重试次数
@@ -107,10 +112,10 @@ def post_form(session: requests.Session, form: dict) -> str:
     return r.text
 
 
-def submit_page1(session, d: date, captcha: str, token: str) -> str:
+def submit_page1(session, d: date, captcha: str, token: str, currency: str = "美元") -> str:
     return post_form(session, {
         "searchDate": d.strftime("%Y-%m-%d"),
-        "pjname":    "美元",
+        "pjname":    currency,
         "head":      "head_620.js",
         "bottom":    "bottom_591.js",
         "first":     "1",
@@ -128,13 +133,13 @@ def submit_pageN(session, pf: dict, page_no: int) -> str:
 # ============================================================
 #  HTML 解析（回归原版最稳健的全盲扫逻辑）
 # ============================================================
-def parse_table(html: str) -> list[dict]:
+def parse_table(html: str, currency: str = "美元") -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     rows = []
     # 还原：直接抓取网页中所有的 tr，避免被外层容器结构干扰
     for tr in soup.select("table tr"):
         tds = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if len(tds) >= 7 and tds[0] == "美元":
+        if len(tds) >= 7 and tds[0] == currency:
             rows.append({
                 "货币名称":   tds[0],
                 "现汇买入价": tds[1],
@@ -186,7 +191,7 @@ def crossed_target(rows: list[dict], d: date) -> bool:
 #  带重试的单页获取
 # ============================================================
 def fetch_page_with_retry(
-    session, pf: dict, page_no: int, d: date
+    session, pf: dict, page_no: int, d: date, currency: str = "美元"
 ) -> tuple[list[dict], dict]:
     for attempt in range(1, PAGE_RETRY + 1):
         try:
@@ -196,7 +201,7 @@ def fetch_page_with_retry(
             time.sleep(attempt * 2.0)
             continue
 
-        rows = parse_table(html)
+        rows = parse_table(html, currency)
         if rows:
             new_pf = parse_pageform(html)
             if new_pf:
@@ -216,8 +221,8 @@ def fetch_page_with_retry(
 # ============================================================
 #  单日完整流程
 # ============================================================
-def fetch_one_day(session, d: date) -> dict | None:
-    log.info(f"=== {d} ===")
+def fetch_one_day(session, d: date, currency: str = "美元") -> dict | None:
+    log.info(f"=== {d} ({currency}) ===")
 
     for day_attempt in range(1, MAX_DAY_ATTEMPTS + 1):
         try:
@@ -244,13 +249,13 @@ def fetch_one_day(session, d: date) -> dict | None:
             continue
 
         try:
-            html1 = submit_page1(session, d, captcha, cap_token)
+            html1 = submit_page1(session, d, captcha, cap_token, currency)
         except Exception as e:
             log.warning(f"  #{day_attempt} 第1页网络异常: {e}")
             time.sleep(2)
             continue
 
-        rows1 = parse_table(html1)
+        rows1 = parse_table(html1, currency)
         if not rows1:
             if has_server_error(html1):
                 continue
@@ -270,7 +275,7 @@ def fetch_one_day(session, d: date) -> dict | None:
         # 正常翻页控制
         if not crossed_target(rows1, d):
             for page_no in range(2, page_count + 1):
-                rows_p, pf = fetch_page_with_retry(session, pf, page_no, d)
+                rows_p, pf = fetch_page_with_retry(session, pf, page_no, d, currency)
 
                 if not rows_p:
                     log.warning(f"  第{page_no}页翻页重试失败")
@@ -312,8 +317,8 @@ def fetch_one_day(session, d: date) -> dict | None:
 # ============================================================
 #  主流程
 # ============================================================
-def load_done() -> set[str]:
-    p = Path(OUTPUT_FILE)
+def load_done(output_file: str) -> set[str]:
+    p = Path(output_file)
     if not p.exists():
         return set()
     try:
@@ -323,22 +328,27 @@ def load_done() -> set[str]:
         return set()
 
 
-def append_row(row: dict):
+def append_row(row: dict, output_file: str):
     df = pd.DataFrame([row])
-    header = not Path(OUTPUT_FILE).exists()
-    df.to_csv(OUTPUT_FILE, mode="a", index=False, header=header, encoding="utf-8-sig")
+    header = not Path(output_file).exists()
+    df.to_csv(output_file, mode="a", index=False, header=header, encoding="utf-8-sig")
 
 
-def main():
-    done = load_done()
+def scrape_currency(currency: str, output_file: str):
+    """抓取单个币种的完整流程"""
+    log.info(f"{'='*50}")
+    log.info(f"开始抓取: {currency} → {output_file}")
+    log.info(f"{'='*50}")
+
+    done = load_done(output_file)
     all_dates = [START_DATE + timedelta(days=i) for i in range((END_DATE - START_DATE).days + 1)]
     pending = [d for d in all_dates if d.strftime("%Y-%m-%d") not in done]
 
     mode_label = "每日模式" if is_daily else "补全模式"
-    log.info(f"[{mode_label}] 总范围: {START_DATE} → {END_DATE} | 已有: {len(done)} 天 | 待补抓: {len(pending)} 天")
+    log.info(f"[{mode_label}][{currency}] 总范围: {START_DATE} → {END_DATE} | 已有: {len(done)} 天 | 待补抓: {len(pending)} 天")
 
     if not pending:
-        log.info("== 没有需要补抓的日期，程序退出 ==")
+        log.info(f"== {currency} 没有需要补抓的日期，跳过 ==")
         return
 
     session = make_session()
@@ -352,28 +362,35 @@ def main():
             session = make_session()
 
         try:
-            rec = fetch_one_day(session, d)
+            rec = fetch_one_day(session, d, currency)
             if rec and isinstance(rec, dict):
                 rec["查询日期"] = ds
-                append_row(rec)
+                append_row(rec, output_file)
         except Exception as e:
-            log.exception(f"{ds} 遇到顶层异常: {e}")
+            log.exception(f"{ds} ({currency}) 遇到顶层异常: {e}")
             session = make_session()
 
         processed += 1
         if processed % 10 == 0:
-            log.info(f">>> 补抓进度: {processed}/{len(pending)} ({processed/len(pending)*100:.1f}%) <<<")
+            log.info(f">>> {currency} 补抓进度: {processed}/{len(pending)} ({processed/len(pending)*100:.1f}%) <<<")
 
         time.sleep(random.uniform(0.5, 1.0))
 
-    log.info(f"== 运行结束，全量数据已安全闭环 ==")
-    
+    log.info(f"== {currency} 运行结束，全量数据已安全闭环 ==")
+
+
+def main():
+    for currency, output_file in CURRENCIES.items():
+        scrape_currency(currency, output_file)
+
+    log.info(f"== 所有币种抓取完成 ==")
+
     # 发送邮件通知
     send_email_notification()
 
 
 def send_email_notification():
-    """发送邮件通知"""
+    """发送邮件通知（多币种）"""
     try:
         # 加载环境变量
         load_dotenv()
@@ -388,13 +405,15 @@ def send_email_notification():
             log.warning("邮件配置不完整，跳过邮件发送")
             return
 
-        # 读取最新数据
-        if Path(OUTPUT_FILE).exists():
-            df = pd.read_csv(OUTPUT_FILE)
-            latest_data = df.tail(5)  # 获取最新的5条记录
-            data_summary = latest_data.to_string(index=False)
-        else:
-            data_summary = "暂无数据"
+        # 读取各币种最新数据
+        summaries = []
+        for currency, output_file in CURRENCIES.items():
+            if Path(output_file).exists():
+                df = pd.read_csv(output_file)
+                latest = df.tail(3).to_string(index=False)
+                summaries.append(f"【{currency}】({len(df)} 条)\n{latest}")
+            else:
+                summaries.append(f"【{currency}】暂无数据")
 
         # 创建邮件内容
         msg = MIMEMultipart()
@@ -402,34 +421,29 @@ def send_email_notification():
         msg['To'] = recipient_email
         msg['Subject'] = f"中国银行外汇牌价数据更新 - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-        # 邮件正文
         body = f"""
 中国银行外汇牌价数据抓取完成！
 
-运行摘要：
-- 运行时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-- 输出文件：{OUTPUT_FILE}
-- 数据文件是否存在：{Path(OUTPUT_FILE).exists()}
-- 文件行数：{len(df) if 'df' in locals() else 0}
+运行时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-最新数据（前5条）：
-{data_summary}
+{chr(10).join(summaries)}
 
 请查看附件获取完整数据。
         """
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
-        # 添加CSV文件作为附件
-        if Path(OUTPUT_FILE).exists():
-            with open(OUTPUT_FILE, 'rb') as attachment:
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            part.add_header(
-                'Content-Disposition',
-                f'attachment; filename= {OUTPUT_FILE}'
-            )
-            msg.attach(part)
+        # 添加所有CSV文件作为附件
+        for currency, output_file in CURRENCIES.items():
+            if Path(output_file).exists():
+                with open(output_file, 'rb') as attachment:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename= {output_file}'
+                )
+                msg.attach(part)
 
         # 发送邮件
         context = ssl.create_default_context()

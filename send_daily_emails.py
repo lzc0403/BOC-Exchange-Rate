@@ -27,7 +27,10 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-OUTPUT_FILE = "boc_usd_cny.csv"
+CURRENCIES = {
+    "美元": "boc_usd_cny.csv",
+    "港币": "boc_hkd_cny.csv",
+}
 
 
 def get_subscriber_list() -> list[str]:
@@ -72,17 +75,16 @@ def get_recipient_from_env() -> list[str]:
     return recipients
 
 
-def build_html_email(latest_data: list[dict]) -> str:
-    """构建精美的 HTML 邮件内容 - 杂志风格"""
+def build_currency_card(latest_data: list[dict], currency: str, pair_label: str) -> str:
+    """构建单个币种的 HTML 卡片"""
     if not latest_data:
-        return "<p>暂无最新数据</p>"
+        return f"<p>{currency}暂无最新数据</p>"
 
     latest = latest_data[-1]  # 最新一条
 
     def fmt(v):
         return f"{v:.2f}" if v else "-"
 
-    # 趋势箭头
     def trend(v, prev_v):
         if prev_v is None or not v or not prev_v:
             return ""
@@ -93,7 +95,6 @@ def build_html_email(latest_data: list[dict]) -> str:
             return f'<span style="color:#27AE60;font-size:13px;">↓ {abs(diff):.2f}</span>'
         return '<span style="color:#999;font-size:13px;">— 0.00</span>'
 
-    # 对比前一天
     prev = latest_data[-2] if len(latest_data) >= 2 else None
     buy_trend = trend(latest.get('现汇买入价'), prev.get('现汇买入价') if prev else None)
     sell_trend = trend(latest.get('现汇卖出价'), prev.get('现汇卖出价') if prev else None)
@@ -108,6 +109,76 @@ def build_html_email(latest_data: list[dict]) -> str:
             <td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:600;font-family:'Menlo',monospace;">{fmt(d.get('现汇卖出价'))}</td>
             <td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700;font-family:'Menlo',monospace;color:#C4956A;">{fmt(d.get('中行折算价'))}</td>
         </tr>"""
+
+    return f"""
+<!-- ===== {currency} Card ===== -->
+<tr><td style="padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 30px rgba(0,0,0,0.06);margin-bottom:24px;">
+<tr>
+<td style="padding:24px 32px 0;text-align:center;">
+    <p style="font-size:12px;color:#999;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px;">{latest['查询日期']} 最新牌价</p>
+    <div style="font-size:36px;font-weight:700;color:#2D3436;font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:-1px;margin:4px 0 8px;">
+        {fmt(latest.get('中行折算价'))}
+        <span style="font-size:14px;font-weight:400;color:#999;letter-spacing:0;"> CNY</span>
+    </div>
+    <p style="font-size:12px;color:#999;margin:0;">{pair_label} · 中行折算价</p>
+</td>
+</tr>
+<tr>
+<td style="padding:16px 32px 8px;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="padding:0 6px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
+<tr><td style="padding:14px;text-align:center;">
+    <p style="font-size:11px;color:#999;margin:0 0 4px;">现汇买入</p>
+    <p style="font-size:20px;font-weight:700;color:#27AE60;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('现汇买入价'))}</p>
+    <p style="font-size:11px;margin:4px 0 0;">{buy_trend}</p>
+</td></tr></table>
+</td>
+<td width="33%" style="padding:0 6px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
+<tr><td style="padding:14px;text-align:center;">
+    <p style="font-size:11px;color:#999;margin:0 0 4px;">现汇卖出</p>
+    <p style="font-size:20px;font-weight:700;color:#E74C3C;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('现汇卖出价'))}</p>
+    <p style="font-size:11px;margin:4px 0 0;">{sell_trend}</p>
+</td></tr></table>
+</td>
+<td width="33%" style="padding:0 6px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
+<tr><td style="padding:14px;text-align:center;">
+    <p style="font-size:11px;color:#999;margin:0 0 4px;">折算价</p>
+    <p style="font-size:20px;font-weight:700;color:#C4956A;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('中行折算价'))}</p>
+    <p style="font-size:11px;margin:4px 0 0;">{mid_trend}</p>
+</td></tr></table>
+</td>
+</tr></table>
+</td>
+</tr>
+<tr>
+<td style="padding:16px 32px 24px;">
+    <h3 style="font-size:14px;color:#2D3436;margin:0 0 12px;font-weight:600;">{currency}最近数据 <span style="font-size:12px;color:#999;font-weight:400;">（近10期）</span></h3>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:8px;overflow:hidden;">
+        <thead><tr style="background:#f5f3ef;">
+            <th style="padding:10px 14px;text-align:left;font-size:11px;color:#888;font-weight:500;">日期</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;">买入</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;">卖出</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;">折算</th>
+        </tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+</td>
+</tr>
+</table>
+</td></tr>"""
+
+
+def build_html_email(all_currency_data: dict[str, list[dict]]) -> str:
+    """构建精美的 HTML 邮件内容 - 多币种杂志风格"""
+    pairs = {"美元": "美元兑人民币", "港币": "港币兑人民币"}
+    cards = ""
+    for currency, data in all_currency_data.items():
+        cards += build_currency_card(data, currency, pairs.get(currency, currency))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -125,81 +196,14 @@ def build_html_email(latest_data: list[dict]) -> str:
 </td>
 </tr>
 
-<!-- ===== Hero Rate ===== -->
-<tr>
-<td style="padding:28px 32px 0;text-align:center;">
-    <p style="font-size:12px;color:#999;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px;">{latest['查询日期']} 最新牌价</p>
-    <div style="font-size:40px;font-weight:700;color:#2D3436;font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:-1px;margin:4px 0 8px;">
-        {fmt(latest.get('中行折算价'))}
-        <span style="font-size:14px;font-weight:400;color:#999;letter-spacing:0;"> CNY</span>
-    </div>
-    <p style="font-size:12px;color:#999;margin:0;">美元兑人民币 · 中行折算价</p>
-</td>
-</tr>
-
-<!-- ===== Three Stats ===== -->
-<tr>
-<td style="padding:20px 32px 8px;">
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td width="33%" style="padding:0 8px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
-<tr><td style="padding:16px;text-align:center;">
-    <p style="font-size:11px;color:#999;margin:0 0 6px;">现汇买入</p>
-    <p style="font-size:22px;font-weight:700;color:#27AE60;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('现汇买入价'))}</p>
-    <p style="font-size:11px;margin:4px 0 0;">{buy_trend}</p>
-</td></tr>
-</table>
-</td>
-<td width="33%" style="padding:0 8px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
-<tr><td style="padding:16px;text-align:center;">
-    <p style="font-size:11px;color:#999;margin:0 0 6px;">现汇卖出</p>
-    <p style="font-size:22px;font-weight:700;color:#E74C3C;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('现汇卖出价'))}</p>
-    <p style="font-size:11px;margin:4px 0 0;">{sell_trend}</p>
-</td></tr>
-</table>
-</td>
-<td width="33%" style="padding:0 8px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f8f6;border-radius:10px;">
-<tr><td style="padding:16px;text-align:center;">
-    <p style="font-size:11px;color:#999;margin:0 0 6px;">折算价</p>
-    <p style="font-size:22px;font-weight:700;color:#C4956A;margin:0;font-family:'Menlo',monospace;">{fmt(latest.get('中行折算价'))}</p>
-    <p style="font-size:11px;margin:4px 0 0;">{mid_trend}</p>
-</td></tr>
-</table>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-
-<!-- ===== Table ===== -->
-<tr>
-<td style="padding:24px 32px 0;">
-    <h3 style="font-size:14px;color:#2D3436;margin:0 0 14px;font-weight:600;">最近汇率数据 <span style="font-size:12px;color:#999;font-weight:400;">（近10期）</span></h3>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:8px;overflow:hidden;">
-        <thead>
-            <tr style="background:#f5f3ef;">
-                <th style="padding:10px 14px;text-align:left;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">日期</th>
-                <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">买入价</th>
-                <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">卖出价</th>
-                <th style="padding:10px 14px;text-align:right;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">折算价</th>
-            </tr>
-        </thead>
-        <tbody>
-            {rows}
-        </tbody>
-    </table>
-</td>
-</tr>
+{cards}
 
 <!-- ===== Footer ===== -->
 <tr>
-<td style="padding:28px 32px;border-top:1px solid #f0eee9;margin-top:24px;">
+<td style="padding:28px 32px;border-top:1px solid #f0eee9;">
     <p style="font-size:12px;color:#aaa;margin:0;line-height:1.8;">
         📊 数据来源：<a href="https://www.bankofchina.com" style="color:#C4956A;text-decoration:none;">中国银行外汇牌价</a><br>
-        ⏰ 自动更新：每日北京时间 10:30 · 本邮件由系统自动发送
+        ⏰ 自动更新：每日北京时间 09:30 · 本邮件由系统自动发送
     </p>
     <p style="font-size:11px;color:#ccc;margin:16px 0 0;padding-top:16px;border-top:1px solid #f5f5f5;">
         <a href="{os.getenv('UNSUBSCRIBE_BASE_URL', '#')}" style="color:#bbb;text-decoration:none;">退订邮件</a>
@@ -216,7 +220,7 @@ def build_html_email(latest_data: list[dict]) -> str:
     return html
 
 
-def send_email(to_email: str, html_body: str, attachment_path: str = None):
+def send_email(to_email: str, html_body: str, attachment_paths: list[str] = None):
     """发送单封邮件"""
     smtp_server = os.getenv("SMTP_SERVER")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
@@ -237,13 +241,15 @@ def send_email(to_email: str, html_body: str, attachment_path: str = None):
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         # 添加 CSV 附件
-        if attachment_path and Path(attachment_path).exists():
-            with open(attachment_path, "rb") as f:
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f'attachment; filename="boc_usd_cny.csv"')
-            msg.attach(part)
+        if attachment_paths:
+            for path in attachment_paths:
+                if path and Path(path).exists():
+                    with open(path, "rb") as f:
+                        part = MIMEBase("application", "octet-stream")
+                        part.set_payload(f.read())
+                    encoders.encode_base64(part)
+                    part.add_header("Content-Disposition", f'attachment; filename="{Path(path).name}"')
+                    msg.attach(part)
 
         # 发送
         context = ssl.create_default_context()
@@ -260,33 +266,35 @@ def send_email(to_email: str, html_body: str, attachment_path: str = None):
 
 
 def main():
-    log.info("=== 开始发送每日汇率邮件 ===")
+    log.info("=== 开始发送每日汇率邮件（多币种）===")
 
-    # 读取CSV数据
-    csv_path = Path(OUTPUT_FILE)
-    if not csv_path.exists():
-        log.error(f"CSV文件不存在: {OUTPUT_FILE}")
+    # 读取各币种CSV数据
+    all_currency_data = {}
+    attachment_paths = []
+    for currency, csv_file in CURRENCIES.items():
+        csv_path = Path(csv_file)
+        if csv_path.exists():
+            df = pd.read_csv(csv_path)
+            latest_data = df.tail(10).to_dict("records")
+            if latest_data:
+                all_currency_data[currency] = latest_data
+                attachment_paths.append(str(csv_path))
+                log.info(f"[{currency}] {len(df)} 条记录，最新: {latest_data[-1].get('查询日期', 'N/A')}")
+            else:
+                log.warning(f"[{currency}] {csv_file} 无数据")
+        else:
+            log.warning(f"[{currency}] {csv_file} 不存在")
+
+    if not all_currency_data:
+        log.warning("没有任何币种数据，跳过发送")
         return
 
-    df = pd.read_csv(csv_path)
-    latest_data = df.tail(10).to_dict("records")
-
-    if not latest_data:
-        log.warning("没有数据可发送")
-        return
-
-    log.info(f"CSV共 {len(df)} 条记录，最新日期: {latest_data[-1].get('查询日期', 'N/A')}")
-
-    # 生成HTML邮件
-    html_body = build_html_email(latest_data)
+    # 生成HTML邮件（包含所有币种卡片）
+    html_body = build_html_email(all_currency_data)
 
     # 收集所有收件人
     recipients = []
-
-    # 1. 从环境变量获取（兼容旧配置）
     recipients.extend(get_recipient_from_env())
-
-    # 2. 从 Worker API 获取订阅者列表
     subscribers = get_subscriber_list()
     recipients.extend([s for s in subscribers if s not in recipients])
 
@@ -297,15 +305,15 @@ def main():
     log.info(f"共 {len(recipients)} 个收件人")
 
     # 发送邮件
+    import time
     success = 0
     fail = 0
     for email in recipients:
-        if send_email(email, html_body, str(csv_path)):
+        if send_email(email, html_body, attachment_paths):
             success += 1
         else:
             fail += 1
-        import time
-        time.sleep(1)  # 避免被判定为垃圾邮件
+        time.sleep(1)
 
     log.info(f"发送完成: 成功 {success}, 失败 {fail}, 总计 {len(recipients)}")
 

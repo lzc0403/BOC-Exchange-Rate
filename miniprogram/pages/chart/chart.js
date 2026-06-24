@@ -1,8 +1,15 @@
 // pages/chart/chart.js
 const app = getApp();
+const { CURRENCY_LABELS } = require('../../utils/api');
 
 Page({
   data: {
+    currency: 'usd',
+    currencyLabel: '美元兑人民币',
+    currencies: [
+      { key: 'usd', label: '🇺🇸 美元' },
+      { key: 'hkd', label: '🇭🇰 港币' }
+    ],
     activeDays: 90,
     empty: false,
     isPhone: false,
@@ -14,7 +21,18 @@ Page({
   },
 
   onShow() {
+    this.setData({ currency: app.globalData.currency || 'usd' });
     setTimeout(() => this.drawChart(), 300);
+  },
+
+  onCurrencyTap(e) {
+    const currency = e.currentTarget.dataset.key;
+    if (currency === this.data.currency) return;
+    this.setData({ currency, currencyLabel: CURRENCY_LABELS[currency].pair });
+    app.globalData.currency = currency;
+    app.globalData.allData = [];
+    app.loadExchangeData();
+    setTimeout(() => this.drawChart(), 500);
   },
 
   onTimeFilter(e) {

@@ -85,6 +85,7 @@ a { color: inherit; text-decoration: none; }
 .pill-primary:hover { background: var(--primary-deep); }
 .pill-secondary { background: var(--canvas); color: var(--primary); border-color: var(--primary); }
 .pill-secondary:hover { background: var(--primary-subdued); }
+.pill.active { box-shadow: 0 0 0 2px rgba(83,58,253,0.3); }
 .pill-sm { padding: 6px 12px; font-size: 14px; }
 
 /* Layout */
@@ -286,8 +287,12 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
 
 <section class="hero"><div class="wrap">
   <p class="eyebrow"><strong>中国银行官方数据</strong> · 每日自动更新</p>
-  <h1 class="display-xl">美元兑人民币<br>汇率追踪</h1>
+  <h1 class="display-xl" id="heroTitle">美元兑人民币<br>汇率追踪</h1>
   <p class="lead">每日自动抓取中国银行官方外汇牌价，提供清晰的走势图表与完整的历史数据。</p>
+  <div class="currency-tabs" style="display:flex;gap:8px;justify-content:center;margin-bottom:28px;">
+    <button class="pill pill-primary currency-btn active" data-currency="usd" onclick="switchCurrency('usd')">🇺🇸 美元</button>
+    <button class="pill pill-secondary currency-btn" data-currency="hkd" onclick="switchCurrency('hkd')">🇭🇰 港币</button>
+  </div>
   <div class="hero-metrics">
     <div class="metric">
       <div class="metric-val tabular" id="heroTotal">—</div>
@@ -344,7 +349,7 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
   <section class="section animate">
     <div class="section-head">
       <p class="eyebrow">汇率走势</p>
-      <h2>美元兑人民币 中行折算价</h2>
+      <h2 id="chartTitle">美元兑人民币 中行折算价</h2>
       <p class="desc">选择时间段查看汇率变化趋势，三条线分别代表折算价、买入价和卖出价。</p>
     </div>
     <div class="chart-card">
@@ -372,7 +377,7 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
     <div class="table-card">
       <div class="table-head">
         <h3 class="table-title">最近30天数据</h3>
-        <a href="boc_usd_cny.csv" download class="download-btn">
+        <a href="boc_usd_cny.csv" download id="downloadBtn" class="download-btn">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
           下载 CSV
         </a>
@@ -441,7 +446,7 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
     </p>
     <div class="footer-links">
       <a href="https://www.bankofchina.com" target="_blank">中国银行官网</a>
-      <a href="boc_usd_cny.csv" download>下载 CSV</a>
+      <a href="boc_usd_cny.csv" download id="footerDownload">下载 CSV</a>
     </div>
     <div class="footer-copy">&copy; 2026 Monica的经验分享</div>
   </div>
@@ -452,10 +457,35 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
 <script>
 let allData = [];
 let chart = null;
+let currentCurrency = 'usd';
+
+const CURRENCY_CONFIG = {
+  usd: { file: 'boc_usd_cny.csv', name: '美元', pair: '美元兑人民币', flag: '🇺🇸' },
+  hkd: { file: 'boc_hkd_cny.csv', name: '港币', pair: '港币兑人民币', flag: '🇭🇰' }
+};
+
+function switchCurrency(currency) {
+  if (currency === currentCurrency) return;
+  currentCurrency = currency;
+  // Update tab styles
+  document.querySelectorAll('.currency-btn').forEach(btn => {
+    const isActive = btn.dataset.currency === currency;
+    btn.className = 'pill currency-btn ' + (isActive ? 'pill-primary active' : 'pill-secondary');
+  });
+  // Update labels
+  const cfg = CURRENCY_CONFIG[currency];
+  document.getElementById('heroTitle').innerHTML = cfg.pair + '<br>汇率追踪';
+  document.getElementById('chartTitle').textContent = cfg.pair + ' 中行折算价';
+  document.getElementById('downloadBtn').href = cfg.file;
+  document.getElementById('footerDownload').href = cfg.file;
+  // Reload data
+  loadData();
+}
 
 async function loadData() {
   try {
-    const urls = ['boc_usd_cny.csv', './boc_usd_cny.csv'];
+    const cfg = CURRENCY_CONFIG[currentCurrency];
+    const urls = [cfg.file, './' + cfg.file];
     let text = null;
     for (const url of urls) {
       try {
