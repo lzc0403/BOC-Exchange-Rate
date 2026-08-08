@@ -189,11 +189,11 @@ def _solve_capsolver(captcha_id: str, pageurl: str) -> dict:
     capsolver.api_key = CAPSOLVER_API_KEY
     # CapSolver 对 Geetest V4 的任务类型固定为 GeeTestTaskProxyLess
     # （不带 "V4" 字样；V4 通过 captchaId 参数本身区分，而非 type 字符串）。
-    # 注意：写错 type 会被 API 直接拒绝（unsupported captcha type）。
+    # 注意：type 写错会被 API 拒绝；字段名必须是驼峰 captchaId（非 captcha_id）。
     solution = capsolver.solve({
         "type": "GeeTestTaskProxyLess",
         "websiteURL": pageurl,
-        "captcha_id": captcha_id,
+        "captchaId": captcha_id,
     })
     # CapSolver 返回标准 Geetest v4 字段（snake_case）
     return {
