@@ -190,10 +190,13 @@ def _solve_capsolver(captcha_id: str, pageurl: str) -> dict:
     # CapSolver 对 Geetest V4 的任务类型固定为 GeeTestTaskProxyLess
     # （不带 "V4" 字样；V4 通过 captchaId 参数本身区分，而非 type 字符串）。
     # 注意：type 写错会被 API 拒绝；字段名必须是驼峰 captchaId（非 captcha_id）。
+    # BOC 的 Geetest 脚本/API 都在子域 immvs.igtb.bankofchina.com，
+    # 显式指定 geetestApiServerSubdomain 帮助 CapSolver 定位验证码。
     solution = capsolver.solve({
         "type": "GeeTestTaskProxyLess",
         "websiteURL": pageurl,
         "captchaId": captcha_id,
+        "geetestApiServerSubdomain": "immvs.igtb.bankofchina.com",
     })
     # CapSolver 返回标准 Geetest v4 字段（snake_case）
     return {

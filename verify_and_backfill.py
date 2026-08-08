@@ -396,8 +396,8 @@ def main() -> None:
     # ----- Step 1: 连接测试 -----
     say("")
     say("【Step 1/4】连接测试")
-    # dry-run / 无 Key 时不联网解析 captcha_id，直接用兜底常量（_resolve_captcha_id 仅在真正解题时由 backfill 内部调用）
-    captcha_id = GEETEST_CAPTCHA_ID
+    # 现场从检索页提取真实 captcha_id（提取失败才退回常量），避免写死常量过期导致 CapSolver 报 not captcha
+    captcha_id = _resolve_captcha_id()
     session = make_session()
     conn_ok, gt, token, conn_msg = test_connection(session, captcha_id, HISTORY_PAGE_URL)
     if conn_ok:
