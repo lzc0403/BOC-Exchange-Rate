@@ -3,3 +3,5 @@ pandas>=2.0.0
 beautifulsoup4>=4.12.0
 ddddocr>=1.5.0
 python-dotenv>=1.0.0
+capsolver>=0.2.0
+2captcha-python>=2.1.0

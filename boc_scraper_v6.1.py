@@ -1,12 +1,48 @@
 """
-中国银行外汇牌价历史抓取 - v5.6 终极修正版
-1. 【彻底修复】还原原版全表扫描解析（soup.select），纠正因表格定位失败导致的无响应跳过 Bug
-2. 防砸崩保护：对 ddddocr 识别增加底层硬崩溃异常捕获
-3. 智能兼容10点前数据：如果当天数据全在10点前发布（如节假日清晨/零点牌价），自动采纳当天最新的一条
+中国银行外汇牌价历史抓取 - v6.2 (Geetest v4 + 打码平台)
+
+=====================================================================
+  根因与修复说明（为什么 v6.1 停更、v6.2 改了什么）
+=====================================================================
+  v6.1 的抓取链路：GET/POST 旧接口
+      https://srh.bankofchina.com/search/whpj/search_cn.jsp
+  该接口已于 2026 年前后下线，现直接返回 404；同时中行历史牌价检索页
+      https://www.boc.cn/sourcedb/whpjSearch/index.html
+  升级为 Geetest v4 行为验证码。原代码用的 ddddocr 只能识别图片字符码，
+  对行为验证码完全无效 → 每日抓取返回空结果 → “无数据变更，跳过提交”，
+  导致 GitHub Actions 全绿但实际零产出，网站数据冻结。
+
+  v6.2 改为：
+    1. 用打码平台（CapSolver 主 / 2Captcha 备）自动过 Geetest v4；
+    2. 带着 4 个 gt4 字段，POST 中行新的历史检索 JSON 接口取数：
+         POST https://srh.bankofchina.com/tsearch/v1/searchExchange/
+              searchMultipleExchangeByXian
+       请求体：{"reqHeader":{},"reqBody":{"pjrq":日期,"pjname":币种,
+              "lotNumber","captchaOutput","passToken","genTime",
+              "pageSize":"1000","page":"1"}}
+       响应体：respBody.respStatus=="00" 时 respBody.data[] 为记录数组，
+             字段 cname_hbmc(货币名称)/hmrj2/cmrj2/mcj2/cmcj2/zhzjj2/
+             pjtime(发布时间)。respStatus=="02" 表示验证码未过/失效。
+    3. 严格保留原 CSV 列顺序与每日“取≥10:00最早一条”的选样/去重契约。
+
+  说明：中行历史接口现已改为“按当日查询”（pjrq 传指定日期只返回该日记录），
+  因此“补全模式(DAILY_MODE=false)”无法再批量回填历史日期，v6.2 在该模式下
+  仅记录 warning 并退出，绝不删除已有数据。每日模式(DAILY_MODE=true)为常态用途。
+
+=====================================================================
+  本地测试（无需 Key 也可验证大部分逻辑）
+=====================================================================
+  set CAPSOLVER_API_KEY=xxx        # 打码平台 Key（无 Key 时脚本会安全跳过）
+  set DAILY_MODE=true
+  python boc_scraper_v6.1.py
+  无 Key 时：抓取检索页 → 提取 captcha_id → 检测到无 Key → 打印明确警告并退出，
+  不写入、不报错。有 Key 时：过验证码 → POST → 解析当日数据 → 追加 CSV。
+  纯逻辑（解析/选样/去重/多币种）见同目录 test_scraper_logic.py。
 """
+import os
 import re
 import time
-import base64
+import json
 import random
 import logging
 import smtplib
@@ -20,46 +56,60 @@ from pathlib import Path
 
 import requests
 import pandas as pd
-import ddddocr
-from bs4 import BeautifulSoup
-import os
-import os
 from dotenv import load_dotenv
 
 # ============================================================
 #  配置（支持环境变量覆盖）
 # ============================================================
-# 默认全量范围：2023-01-01 ~ 昨天
+# 默认全量范围：2023-01-01 ~ 昨天（仅用于说明；补全模式当前已禁用）
 DEFAULT_START = date(2023, 1, 1)
-# 环境变量 DAILY_MODE=true 时，尝试抓取当天数据
+
+# 环境变量 DAILY_MODE=true 时，仅抓取当天（常态 CICD 用法）
 is_daily = os.getenv("DAILY_MODE", "").lower() in ("true", "1", "yes")
 if is_daily:
     START_DATE = date.today()
-    END_DATE   = date.today()
+    END_DATE = date.today()
 else:
     START_DATE = DEFAULT_START
-    END_DATE   = date.today() - timedelta(days=1)
+    END_DATE = date.today() - timedelta(days=1)
+
 TARGET_HOUR = 10          # 优先抓每天 10:00 之后最早一条
 
-# 多币种配置：币种中文名 → 输出文件名
+# 多币种配置：币种中文名 → 输出文件名（契约，勿改）
 CURRENCIES = {
     "美元": "boc_usd_cny.csv",
     "港币": "boc_hkd_cny.csv",
 }
 
-MAX_DAY_ATTEMPTS = 8      # 单日最大重试次数
-PAGE_RETRY       = 3      # 单页最大重试次数
-SESSION_REFRESH  = 50     # 缩短刷新周期，防 Session 频繁过期
+# 打码平台供应商：capsolver（默认主用） / twocaptcha（备用）
+CAPTCHA_PROVIDER = os.getenv("CAPTCHA_PROVIDER", "capsolver").lower()
+CAPSOLVER_API_KEY = os.getenv("CAPSOLVER_API_KEY", "")
+TWOCAPTCHA_API_KEY = os.getenv("TWOCAPTCHA_API_KEY", "")
 
-BASE        = "https://srh.bankofchina.com"
-PAGE_URL    = f"{BASE}/search/whpj/search_cn.jsp"
-CAPTCHA_URL = f"{BASE}/search/whpj/CaptchaServlet.jsp"
+# 中行历史牌价检索页（用来取 captcha_id 与建立会话 cookie）
+HISTORY_PAGE_URL = "https://www.boc.cn/sourcedb/whpjSearch/index.html"
+# 历史检索 JSON 接口（实际取数目标，替代已 404 的 search_cn.jsp）
+SEARCH_API_URL = "https://srh.bankofchina.com/tsearch/v1/searchExchange/searchMultipleExchangeByXian"
+# 兜底 captcha_id（运行时优先从页面动态提取；此处为离线兜底值）
+GEETEST_CAPTCHA_ID = "a4d5e32ec03f74bf0425916cabe1c5a9"
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
-# 只有当完全解析不出美元表格，且包含以下错误词时才触发重试
-SERVER_ERRORS = ("系统繁忙", "请重新输入", "重新登录", "session",
-                 "验证码错误", "验证码不正确", "验证码失效")
+# 每个币种查询最大尝试次数：第 1 次为正常执行，仅当失败时才重试 1 次（共 2 次）。
+# 不做无意义的频繁轮询，以节省打码平台(CapSolver)按次计费成本。
+MAX_ATTEMPTS_PER_CURRENCY = 2
+
+# JSON 响应字段 → CSV 列 的映射（respBody.data[].xxx）
+FIELD_MAP = {
+    "货币名称": "cname_hbmc",
+    "现汇买入价": "hmrj2",
+    "现钞买入价": "cmrj2",
+    "现汇卖出价": "mcj2",
+    "现钞卖出价": "cmcj2",
+    "中行折算价": "zhzjj2",
+    "发布时间": "pjtime",
+}
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,101 +120,167 @@ logging.basicConfig(
     ],
 )
 log = logging.getLogger(__name__)
-ocr = ddddocr.DdddOcr(show_ad=False)
+
+
+class BocCaptchaError(Exception):
+    """接口返回验证码未通过/失效时抛出，用于触发重新求解。"""
 
 
 # ============================================================
-#  Session 管理
+#  会话管理（建立中行站点 cookie）
 # ============================================================
 def make_session() -> requests.Session:
+    """建立与中行站点的会话（主要用于拿到检索页 Set-Cookie）。"""
     s = requests.Session()
     s.headers.update({
         "User-Agent": UA,
         "Accept-Language": "zh-CN,zh;q=0.9",
-        "Referer": PAGE_URL,
-        "Origin": BASE,
+        "Referer": HISTORY_PAGE_URL,
     })
     try:
-        s.get(PAGE_URL, timeout=15)
+        s.get(HISTORY_PAGE_URL, timeout=15)
     except Exception as e:
-        log.warning(f"Session 初始化警告: {e}")
+        log.warning(f"会话初始化警告: {e}")
     return s
 
 
 # ============================================================
-#  验证码
+#  检索页 / captcha_id 提取
 # ============================================================
-def get_captcha(session: requests.Session) -> tuple[bytes, str]:
-    r = session.get(CAPTCHA_URL, timeout=10)
+def fetch_history_page() -> str:
+    """GET 历史检索页，返回 HTML 文本。"""
+    r = requests.get(HISTORY_PAGE_URL, headers={"User-Agent": UA}, timeout=20)
     r.raise_for_status()
-    token = r.headers.get("Token") or r.headers.get("token")
-    if not token:
-        raise RuntimeError(f"响应头无 Token")
-    return base64.b64decode(r.text.strip()), token
-
-
-# ============================================================
-#  表单提交
-# ============================================================
-def post_form(session: requests.Session, form: dict) -> str:
-    r = session.post(PAGE_URL, data=form, timeout=20)
     r.encoding = "utf-8"
     return r.text
 
 
-def submit_page1(session, d: date, captcha: str, token: str, currency: str = "美元") -> str:
-    return post_form(session, {
-        "searchDate": d.strftime("%Y-%m-%d"),
-        "pjname":    currency,
-        "head":      "head_620.js",
-        "bottom":    "bottom_591.js",
-        "first":     "1",
-        "token":     token,
-        "captcha":   captcha,
+def extract_captcha_id(html: str) -> str | None:
+    """
+    从检索页 HTML 提取 Geetest v4 的静态 captcha_id。
+    页面形如：var captchaId = "a4d5e32ec03f74bf0425916cabe1c5a9"
+    也兜底匹配 gt4 load 脚本中的 captcha_id 参数。
+    """
+    if not html:
+        return None
+    # 主匹配：var captchaId = "...."
+    m = re.search(r'captchaId\s*=\s*["\']([0-9a-fA-F]{16,})["\']', html)
+    if m:
+        return m.group(1)
+    # 兜底：captcha_id= 或 "captcha_id":"...."
+    m2 = re.search(r'captcha_id["\']?\s*[:=]\s*["\']([0-9a-fA-F]{16,})["\']', html)
+    return m2.group(1) if m2 else None
+
+
+# ============================================================
+#  打码平台：Geetest v4 解题（CapSolver 主 / 2Captcha 备）
+# ============================================================
+def _has_captcha_key() -> bool:
+    if CAPTCHA_PROVIDER == "twocaptcha":
+        return bool(TWOCAPTCHA_API_KEY)
+    return bool(CAPSOLVER_API_KEY)
+
+
+def _solve_capsolver(captcha_id: str, pageurl: str) -> dict:
+    """调用 CapSolver 解 Geetest v4，返回标准 4 字段（snake_case）。"""
+    if not CAPSOLVER_API_KEY:
+        raise RuntimeError("CAPSOLVER_API_KEY 未配置")
+    import capsolver  # 延迟导入，避免无 Key / 离线时硬依赖
+    capsolver.api_key = CAPSOLVER_API_KEY
+    solution = capsolver.solve({
+        "type": "GeeTestV4TaskProxyLess",
+        "websiteURL": pageurl,
+        "captcha_id": captcha_id,
     })
-
-
-def submit_pageN(session, pf: dict, page_no: int) -> str:
-    form = dict(pf)
-    form["page"] = str(page_no)
-    return post_form(session, form)
-
-
-# ============================================================
-#  HTML 解析（回归原版最稳健的全盲扫逻辑）
-# ============================================================
-def parse_table(html: str, currency: str = "美元") -> list[dict]:
-    soup = BeautifulSoup(html, "html.parser")
-    rows = []
-    # 还原：直接抓取网页中所有的 tr，避免被外层容器结构干扰
-    for tr in soup.select("table tr"):
-        tds = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if len(tds) >= 7 and tds[0] == currency:
-            rows.append({
-                "货币名称":   tds[0],
-                "现汇买入价": tds[1],
-                "现钞买入价": tds[2],
-                "现汇卖出价": tds[3],
-                "现钞卖出价": tds[4],
-                "中行折算价": tds[5],
-                "发布时间":   tds[6],
-            })
-    return rows
-
-
-def parse_pageform(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
-    form = soup.find("form", {"name": "pageform"})
-    if not form:
-        return {}
+    # CapSolver 返回标准 Geetest v4 字段（snake_case）
     return {
-        inp["name"]: inp.get("value", "")
-        for inp in form.find_all("input")
-        if inp.get("name")
+        "lot_number": solution["lot_number"],
+        "pass_token": solution["pass_token"],
+        "gen_time": solution["gen_time"],
+        "captcha_output": solution["captcha_output"],
     }
 
 
+def _solve_twocaptcha(captcha_id: str, pageurl: str) -> dict:
+    """调用 2Captcha 解 Geetest v4，返回标准 4 字段（snake_case）。
+
+    注：2captcha-python 的 geetest_v4 参数名为 url（非 pageurl）。
+    """
+    if not TWOCAPTCHA_API_KEY:
+        raise RuntimeError("TWOCAPTCHA_API_KEY 未配置")
+    from twocaptcha import TwoCaptcha  # 延迟导入
+    solver = TwoCaptcha(TWOCAPTCHA_API_KEY)
+    solution = solver.geetest_v4(captcha_id=captcha_id, url=pageurl)
+    return {
+        "lot_number": solution["lot_number"],
+        "pass_token": solution["pass_token"],
+        "gen_time": solution["gen_time"],
+        "captcha_output": solution["captcha_output"],
+    }
+
+
+def solve_geetest(captcha_id: str, pageurl: str) -> dict:
+    """
+    解 Geetest v4 验证码，返回标准 4 字段（snake_case）。
+    供应商由 CAPTCHA_PROVIDER 切换（默认 capsolver）。
+    """
+    if CAPTCHA_PROVIDER == "twocaptcha":
+        return _solve_twocaptcha(captcha_id, pageurl)
+    return _solve_capsolver(captcha_id, pageurl)
+
+
+# ============================================================
+#  POST 历史检索接口 + 解析
+# ============================================================
+def query_day(
+    session: requests.Session,
+    d: date,
+    currency: str,
+    gt: dict,
+    token: str | None = None,
+) -> tuple[list, str | None]:
+    """
+    携带 gt4 四字段，按日期查询某币种当日全部快照。
+    返回 (respBody.data 列表, 响应头 Token(用于后续请求))。
+    验证码未过/失效时抛 BocCaptchaError。
+    """
+    # 中行接口使用 camelCase 参数名（与页面 queryParams 一致），
+    # 由打码平台返回的 snake_case 标准字段映射而来。
+    req_body = {
+        "pjrq": d.strftime("%Y-%m-%d"),   # 查询日期
+        "pjname": currency,               # 币种中文名
+        "lotNumber": gt["lot_number"],
+        "captchaOutput": gt["captcha_output"],
+        "passToken": gt["pass_token"],
+        "genTime": gt["gen_time"],
+        "pageSize": "1000",
+        "page": "1",
+    }
+    payload = {"reqHeader": {}, "reqBody": req_body}
+    headers = {"User-Agent": UA, "content-type": "application/json"}
+    if token:
+        headers["Token"] = token
+
+    r = session.post(SEARCH_API_URL, json=payload, headers=headers, timeout=30)
+    r.encoding = "utf-8"
+    try:
+        j = r.json()
+    except ValueError:
+        raise RuntimeError(f"接口未返回 JSON（HTTP {r.status_code}）")
+
+    rb = j.get("respBody", {})
+    status = rb.get("respStatus")
+    if status != "00" or "data" not in rb:
+        err = rb.get("errMsg", "") or j.get("respHeader", {}).get("respStatus", "")
+        raise BocCaptchaError(f"接口返回非00状态: respStatus={status} err={err}")
+
+    # 捕获响应头 Token，供同一会话后续请求复用（页面行为一致）
+    new_token = r.headers.get("Token") or token
+    return rb["data"], new_token
+
+
 def parse_time(s: str):
+    """解析发布时间字符串（支持 2026/08/07 10:32:15 与 2026-08-07 10:32:15）。"""
     for fmt in ("%Y/%m/%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(s, fmt)
@@ -173,151 +289,63 @@ def parse_time(s: str):
     return None
 
 
-def has_server_error(html: str) -> bool:
-    return any(k in html for k in SERVER_ERRORS)
+def parse_response(data_list: list, currency: str, d: date) -> list[dict]:
+    """
+    把接口返回的 data[] 解析为本系统行结构（按表头/字段映射提取）。
+    只保留：货币名称匹配 且 发布日期 == 查询日期 的记录。
+    """
+    rows = []
+    for item in data_list:
+        if item.get(FIELD_MAP["货币名称"]) != currency:
+            continue
+        pjtime = item.get(FIELD_MAP["发布时间"], "") or ""
+        t = parse_time(pjtime)
+        if t is None:
+            continue
+        if t.date() != d:
+            # 防御：接口偶发返回非目标日期（如跨日边界），严格过滤
+            continue
+        row = {
+            "货币名称": item.get(FIELD_MAP["货币名称"], ""),
+            "现汇买入价": item.get(FIELD_MAP["现汇买入价"], "") or "",
+            "现钞买入价": item.get(FIELD_MAP["现钞买入价"], "") or "",
+            "现汇卖出价": item.get(FIELD_MAP["现汇卖出价"], "") or "",
+            "现钞卖出价": item.get(FIELD_MAP["现钞卖出价"], "") or "",
+            "中行折算价": item.get(FIELD_MAP["中行折算价"], "") or "",
+            "发布时间": pjtime,
+            "查询日期": d.strftime("%Y-%m-%d"),
+            "_t": t,  # 内部排序用，写出前剔除
+        }
+        rows.append(row)
+    return rows
 
 
-def crossed_target(rows: list[dict], d: date) -> bool:
+def select_daily_record(rows: list[dict], d: date) -> dict | None:
+    """
+    从当日全部快照中选出“每天≈10点那一条”：
+      策略A：取 >= 10:00 的最早一条（优先）；
+      策略B：若当日尚无 >=10:00 的快照（如节假日清晨牌价），取最新的一条兜底。
+    返回选中的行（已剔除内部字段 _t）；无记录返回 None。
+    """
     if not rows:
-        return False
-    t = parse_time(rows[-1]["发布时间"])
-    # 只要当前页最后一条数据的日期已经跨入前一天，说明当天的历史数据已经全捞完了，停止翻页
-    if t and t.date() < d:
-        return True
-    return bool(t and t.date() == d and t.hour < TARGET_HOUR)
+        return None
+    rows_sorted = sorted(rows, key=lambda x: x["_t"])
+    after_10 = [r for r in rows_sorted if r["_t"].hour >= TARGET_HOUR]
+    if after_10:
+        best = after_10[0]
+        log.info(f"  ✓ {best['发布时间']} (策略A: 10点后首条) 折算价={best['中行折算价']}")
+        return best
+    # 策略B：兜底取当天最新一条
+    best = rows_sorted[-1]
+    log.info(f"  ✓ {best['发布时间']} (策略B: 10点前独家兜底) 折算价={best['中行折算价']}")
+    return best
 
 
 # ============================================================
-#  带重试的单页获取
-# ============================================================
-def fetch_page_with_retry(
-    session, pf: dict, page_no: int, d: date, currency: str = "美元"
-) -> tuple[list[dict], dict]:
-    for attempt in range(1, PAGE_RETRY + 1):
-        try:
-            html = submit_pageN(session, pf, page_no)
-        except Exception as e:
-            log.warning(f"    第{page_no}页第{attempt}次网络异常: {e}")
-            time.sleep(attempt * 2.0)
-            continue
-
-        rows = parse_table(html, currency)
-        if rows:
-            new_pf = parse_pageform(html)
-            if new_pf:
-                pf.update({k: v for k, v in new_pf.items() if k in ["paramtk", "pageCount"]})
-            return rows, pf
-
-        if has_server_error(html):
-            log.warning(f"    第{page_no}页第{attempt}次服务端异常或空响应提示")
-            time.sleep(attempt * 1.5)
-            continue
-
-        time.sleep(attempt * 2.0)
-
-    return [], pf
-
-
-# ============================================================
-#  单日完整流程
-# ============================================================
-def fetch_one_day(session, d: date, currency: str = "美元") -> dict | None:
-    log.info(f"=== {d} ({currency}) ===")
-
-    for day_attempt in range(1, MAX_DAY_ATTEMPTS + 1):
-        try:
-            img_bytes, cap_token = get_captcha(session)
-        except Exception as e:
-            log.warning(f"  #{day_attempt} 取验证码失败: {e}")
-            time.sleep(2)
-            continue
-
-        if not img_bytes or len(img_bytes) < 100 or b"html" in img_bytes.lower():
-            log.warning(f"  #{day_attempt} 验证码二进制数据异常")
-            time.sleep(2)
-            continue
-
-        try:
-            captcha = re.sub(r"[^A-Za-z0-9]", "", ocr.classification(img_bytes).strip())
-        except Exception as ocr_err:
-            log.error(f"  #{day_attempt} ddddocr 底层捕获: {ocr_err}")
-            session = make_session()
-            time.sleep(2)
-            continue
-
-        if not (3 <= len(captcha) <= 6):
-            continue
-
-        try:
-            html1 = submit_page1(session, d, captcha, cap_token, currency)
-        except Exception as e:
-            log.warning(f"  #{day_attempt} 第1页网络异常: {e}")
-            time.sleep(2)
-            continue
-
-        rows1 = parse_table(html1, currency)
-        if not rows1:
-            if has_server_error(html1):
-                continue
-            log.warning(f"  #{day_attempt} 第1页未解析出有效行数据，准备重试")
-            continue
-
-        pf = parse_pageform(html1)
-        try:
-            page_count = int(pf.get("pageCount", 1))
-        except ValueError:
-            page_count = 1
-
-        log.info(f"    第 1 页 {len(rows1)} 条 共 {page_count} 页")
-        all_rows = list(rows1)
-        day_ok = True
-
-        # 正常翻页控制
-        if not crossed_target(rows1, d):
-            for page_no in range(2, page_count + 1):
-                rows_p, pf = fetch_page_with_retry(session, pf, page_no, d, currency)
-
-                if not rows_p:
-                    log.warning(f"  第{page_no}页翻页重试失败")
-                    day_ok = False
-                    break
-
-                all_rows.extend(rows_p)
-                if crossed_target(rows_p, d):
-                    break
-
-                time.sleep(random.uniform(0.4, 0.8))
-
-        # 数据清洗过滤
-        cands_all = [(parse_time(r["发布时间"]), r) for r in all_rows]
-        cands_today = [(t, r) for t, r in cands_all if t and t.date() == d]
-
-        if not cands_today:
-            log.warning(f"  {d} 列表里未包含当天的有效记录")
-            continue
-
-        # 策略 A：寻找大于等于 10:00 的最早一条记录
-        cands_after_10 = [item for item in cands_today if item[0].hour >= TARGET_HOUR]
-        if cands_after_10:
-            cands_after_10.sort(key=lambda x: x[0])
-            best_t, best_r = cands_after_10[0]
-            log.info(f"  ✓ {best_t} (策略A: 10点后首条) 折算价={best_r['中行折算价']}")
-            return best_r
-        
-        # 策略 B（针对无高频更新日）：取当天最新、最接近10点的一条
-        cands_today.sort(key=lambda x: x[0], reverse=True) 
-        best_t, best_r = cands_today[0]
-        log.info(f"  ✓ {best_t} (策略B: 10点前独家兜底) 折算价={best_r['中行折算价']}")
-        return best_r
-
-    log.error(f"  ✗ {d} 已达最大重试次数，跳过")
-    return None
-
-
-# ============================================================
-#  主流程
+#  CSV 读写 / 去重（契约：列顺序、utf-8-sig、按查询日期去重）
 # ============================================================
 def load_done(output_file: str) -> set[str]:
+    """读取已有 CSV，返回已记录的 查询日期 集合（用于按天去重）。"""
     p = Path(output_file)
     if not p.exists():
         return set()
@@ -329,63 +357,113 @@ def load_done(output_file: str) -> set[str]:
 
 
 def append_row(row: dict, output_file: str):
+    """追加一行；文件不存在时写表头（utf-8-sig，兼容 Excel/前端）。"""
+    # 写出前剔除内部字段
+    row = {k: v for k, v in row.items() if k != "_t"}
     df = pd.DataFrame([row])
     header = not Path(output_file).exists()
     df.to_csv(output_file, mode="a", index=False, header=header, encoding="utf-8-sig")
 
 
-def scrape_currency(currency: str, output_file: str):
-    """抓取单个币种的完整流程"""
-    log.info(f"{'='*50}")
-    log.info(f"开始抓取: {currency} → {output_file}")
-    log.info(f"{'='*50}")
-
-    done = load_done(output_file)
-    all_dates = [START_DATE + timedelta(days=i) for i in range((END_DATE - START_DATE).days + 1)]
-    pending = [d for d in all_dates if d.strftime("%Y-%m-%d") not in done]
-
-    mode_label = "每日模式" if is_daily else "补全模式"
-    log.info(f"[{mode_label}][{currency}] 总范围: {START_DATE} → {END_DATE} | 已有: {len(done)} 天 | 待补抓: {len(pending)} 天")
-
-    if not pending:
-        log.info(f"== {currency} 没有需要补抓的日期，跳过 ==")
+# ============================================================
+#  单日完整流程（打码 + 多币种）
+# ============================================================
+def scrape_today():
+    """
+    每日模式：抓取今天 + 昨天（补充前一天防漏抓）的美元/港币牌价并追加到各自 CSV。
+    每个币种单次执行、失败仅重试一次（最多 2 次），获取不到即放弃，次日再补抓前一天。
+    打码平台 Key 缺失时安全跳过（不写入、不报错）。
+    """
+    if not is_daily:
+        log.warning("补全(backfill)模式：中行历史接口已改为按当日查询，"
+                    "无法批量回填历史日期；保留现有数据并退出（不删除任何数据）。")
         return
 
-    session = make_session()
-    processed = 0
+    if not _has_captcha_key():
+        log.error("未配置打码平台 API Key（CAPSOLVER_API_KEY 或 TWOCAPTCHA_API_KEY），"
+                  "无法过 Geetest v4，今日跳过。配置 Key 后重新运行。")
+        return
 
-    for d in pending:
+    # 1) 取检索页，提取 captcha_id 并建立会话
+    try:
+        html = fetch_history_page()
+    except Exception as e:
+        log.error(f"无法获取历史检索页: {e}")
+        return
+    captcha_id = extract_captcha_id(html) or GEETEST_CAPTCHA_ID
+    log.info(f"Geetest captcha_id = {captcha_id}")
+    pageurl = HISTORY_PAGE_URL
+
+    session = make_session()
+
+    # 抓取日期范围：今天 + 昨天（补充前一天，防漏抓；昨天已写过会被去重跳过）。
+    # 若“当天出问题→停→第二天再执行”，次日运行会抓 [昨天=今天, 今天=明天]，自然补回失败那天。
+    BACKFILL_DAYS = 1
+    target_dates = [date.today() - timedelta(days=BACKFILL_DAYS), date.today()]
+
+    # gt4 解(gt) 仅首次或失效后求解一次，成功后跨币种、跨日期复用，避免无谓计费。
+    gt: dict | None = None
+    token: str | None = None
+    for d in target_dates:
         ds = d.strftime("%Y-%m-%d")
 
-        if processed > 0 and processed % SESSION_REFRESH == 0:
-            log.info(f"--- 定期重置 Session (已处理 {processed} 天) ---")
-            session = make_session()
+        # 2) 去重：已写入该日期的币种直接跳过（幂等，防重复/补抓前一天）
+        done = {c: load_done(f) for c, f in CURRENCIES.items()}
+        pending = {c: f for c, f in CURRENCIES.items() if ds not in done[c]}
+        if not pending:
+            log.info(f"{ds} 所有币种已存在记录，跳过")
+            continue
+        log.info(f"待抓取 {ds} 币种: {list(pending.keys())}")
 
-        try:
-            rec = fetch_one_day(session, d, currency)
-            if rec and isinstance(rec, dict):
-                rec["查询日期"] = ds
+        # 3) 每个币种独立查询：单次执行，仅当本次调用出错时才重试一次（最多 2 次）。
+        for currency, output_file in pending.items():
+            ok = False
+            for attempt in range(1, MAX_ATTEMPTS_PER_CURRENCY + 1):  # 1 或 2
+                try:
+                    if gt is None:
+                        gt = solve_geetest(captcha_id, pageurl)
+                    data_list, token = query_day(session, d, currency, gt, token)
+                    rows = parse_response(data_list, currency, d)
+                    rec = select_daily_record(rows, d)
+                except BocCaptchaError as e:
+                    log.warning(f"  [{ds}/{currency}] 第{attempt}次 验证码失效: {e}")
+                    gt = None  # 失效，下次尝试将重新求解
+                    continue   # 进入下一次 attempt（已达上限则自动跳出）
+                except Exception as e:
+                    log.warning(f"  [{ds}/{currency}] 第{attempt}次 查询异常(超时/网络/解析): {e}")
+                    # 注：Geetest v4 每天只过一次，gt 仍有效，不重置、直接复用重试 POST
+                    continue
+
+                if rec is None:
+                    # 当日尚未发布牌价：属正常情况，非错误，不重试以免浪费成本
+                    log.warning(f"  [{ds}/{currency}] 当日尚未发布牌价，本次跳过（不重试）")
+                    ok = True
+                    break
+                rec.pop("_t", None)
                 append_row(rec, output_file)
-        except Exception as e:
-            log.exception(f"{ds} ({currency}) 遇到顶层异常: {e}")
-            session = make_session()
+                done[currency].add(ds)
+                log.info(f"  ✓ 已写入 {output_file} | {ds} {currency} {rec['发布时间']} 折算价={rec['中行折算价']}")
+                ok = True
+                break
+            if not ok:
+                log.error(f"  [{ds}/{currency}] 连续 {MAX_ATTEMPTS_PER_CURRENCY} 次失败，放弃该日该币种（次日将补抓前一天）")
 
-        processed += 1
-        if processed % 10 == 0:
-            log.info(f">>> {currency} 补抓进度: {processed}/{len(pending)} ({processed/len(pending)*100:.1f}%) <<<")
-
-        time.sleep(random.uniform(0.5, 1.0))
-
-    log.info(f"== {currency} 运行结束，全量数据已安全闭环 ==")
+    log.info(f"== 抓取结束 ==")
 
 
+# ============================================================
+#  主流程
+# ============================================================
 def main():
-    for currency, output_file in CURRENCIES.items():
-        scrape_currency(currency, output_file)
+    log.info("=" * 60)
+    log.info("中国银行外汇牌价抓取 v6.2 (Geetest v4 + 打码平台)")
+    log.info(f"模式: {'每日' if is_daily else '补全(已禁用)'} | 运行日期: {date.today()}")
+    log.info(f"打码供应商: {CAPTCHA_PROVIDER}")
+    log.info("=" * 60)
 
-    log.info(f"== 所有币种抓取完成 ==")
+    scrape_today()
 
-    # 发送邮件通知
+    # 发送邮件通知（多币种 CSV 附件，沿用 send_daily_emails.py 约定）
     send_email_notification()
 
 

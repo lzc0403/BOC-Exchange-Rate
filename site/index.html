@@ -489,7 +489,9 @@ async function loadData() {
     let text = null;
     for (const url of urls) {
       try {
-        const r = await fetch(url);
+        // 加 t= 时间戳破坏 GitHub Pages / 浏览器 CDN 缓存，避免“部署了却看不到新数”
+        const bust = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+        const r = await fetch(bust);
         if (r.ok) { text = await r.text(); break; }
       } catch(e) {}
     }

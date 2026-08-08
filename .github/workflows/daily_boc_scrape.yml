@@ -53,10 +53,14 @@ jobs:
         SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         DAILY_MODE: ${{ github.event.inputs.mode == 'daily' || github.event_name == 'schedule' }}
+        # 打码平台 Key（CapSolver 主 / 可选 2Captcha 备）
+        CAPSOLVER_API_KEY: ${{ secrets.CAPSOLVER_API_KEY }}
+        TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
       run: |
         python boc_scraper_v6.1.py
 
     - name: Send daily emails to subscribers
+      continue-on-error: true
       env:
         SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
         SMTP_PORT: 587
@@ -71,18 +75,20 @@ jobs:
 
     - name: Sync data to site directory
       run: |
-        cp boc_usd_cny.csv site/boc_usd_cny.csv
-        cp boc_hkd_cny.csv site/boc_hkd_cny.csv
+        # 港币 CSV 由爬虫在 root 生成；缺失时跳过（2>/dev/null || true）避免整条失败
+        cp boc_usd_cny.csv site/boc_usd_cny.csv 2>/dev/null || true
+        cp boc_hkd_cny.csv site/boc_hkd_cny.csv 2>/dev/null || true
         echo "数据已同步到site目录"
 
     - name: Commit and push changes
       env:
-        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-        git add boc_usd_cny.csv boc_hkd_cny.csv site/
+        # 文件可能不存在（如当日无新数据/无 Key），用 2>/dev/null || true 兜底
+        git add boc_usd_cny.csv boc_hkd_cny.csv site/ 2>/dev/null || true
         git diff --staged --quiet && echo "无数据变更，跳过提交" || (git commit -m "更新汇率数据 $(date +'%Y-%m-%d')" && git push)
 
     - name: Upload results
