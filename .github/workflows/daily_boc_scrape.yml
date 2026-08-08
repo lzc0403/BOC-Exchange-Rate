@@ -57,7 +57,13 @@ jobs:
         CAPSOLVER_API_KEY: ${{ secrets.CAPSOLVER_API_KEY }}
         TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
       run: |
-        python boc_scraper_v6.1.py
+        if [ "${{ github.event.inputs.mode }}" = "backfill" ]; then
+          echo "== 运行补全模式(backfill): verify_and_backfill.py =="
+          python verify_and_backfill.py --max-days 60
+        else
+          echo "== 运行每日模式(daily): boc_scraper_v6.1.py =="
+          python boc_scraper_v6.1.py
+        fi
 
     - name: Send daily emails to subscribers
       continue-on-error: true
