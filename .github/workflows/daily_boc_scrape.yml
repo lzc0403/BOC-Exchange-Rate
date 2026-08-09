@@ -37,6 +37,8 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        # Playwright 浏览器（含 X 依赖，配合 xvfb-run 跑有头模式拖滑块）
+        python -m playwright install --with-deps chromium
 
     - name: Create .env file
       run: |
@@ -53,16 +55,18 @@ jobs:
         SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         DAILY_MODE: ${{ github.event.inputs.mode == 'daily' || github.event_name == 'schedule' }}
-        # 打码平台 Key（CapSolver 主 / 可选 2Captcha 备）
+        # 打码平台 Key（CapSolver 主 / 可选 2Captcha 备）——仅 verify_and_backfill 兜底用
         CAPSOLVER_API_KEY: ${{ secrets.CAPSOLVER_API_KEY }}
         TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
       run: |
+        # 主方案：boc_scraper_pw.py（Playwright 自动拖滑块，已标定缺口公式，全自动）
+        # xvfb-run 提供虚拟显示器，供 Chromium 以非无头模式运行（规避无头风控）
         if [ "${{ github.event.inputs.mode }}" = "backfill" ]; then
-          echo "== 运行补全模式(backfill): verify_and_backfill.py =="
-          python verify_and_backfill.py --max-days 60
+          echo "== 运行补全模式(backfill): boc_scraper_pw.py =="
+          END_DATE=$(date +%F) xvfb-run -a python boc_scraper_pw.py
         else
-          echo "== 运行每日模式(daily): boc_scraper_v6.1.py =="
-          python boc_scraper_v6.1.py
+          echo "== 运行每日模式(daily): boc_scraper_pw.py (Playwright 自动滑块) =="
+          END_DATE=$(date +%F) xvfb-run -a python boc_scraper_pw.py
         fi
 
     - name: Send daily emails to subscribers
