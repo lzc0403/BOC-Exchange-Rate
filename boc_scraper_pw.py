@@ -1,5 +1,5 @@
 """
-中国银行外汇牌价抓取 - Playwright 版（应对 Geetest V4 bind 模式）
+中国银行外汇牌价抓取 - Playwright 版（应对 Geetest V4 bind 模式，自动拖滑块）
 ================================================================================
 为什么需要这个版本？
   原 boc_scraper_v6.1.py 用 CapSolver 凭 websiteURL + captchaId 自动解题，
@@ -7,33 +7,28 @@
   按钮后才执行（见线上页面 JS）。CapSolver 机器人访问裸 URL 时页面上没有
   验证码控件 → 报 -50103 not captcha，无法自动解题。
 
-本版做法（唯一能稳定拿到 token 的路线）：
-  1. 用 Playwright 打开 BOC 历史检索页（origin = boc.cn，Geetest 接受）；
-  2. 填日期 + 选币种 + 点击"查询" → 验证码初始化并弹出；
-  3. 尝试用 CapSolver 自动解题（对 BOC 大概率仍失败，优雅降级）；
-     失败则【人工在浏览器里拖一次滑块】完成验证；
-  4. 监听 BOC 前端发出的 searchMultipleExchangeByXian 请求，
-     从其请求体截获 4 个 token（lotNumber/captchaOutput/passToken/genTime）；
-  5. 复用这套 token，直接用 requests 把全部缺失日期 × 币种补全写库。
+本版做法（已实测可行的全自动路线）：
+  1. 用 Playwright 打开 BOC 历史检索页；
+  2. 对每个缺失日期：填日期 + 选币种 + 点击"查询" → 验证码初始化并弹出；
+  3. 自动分析滑块缺口图片（fullbg 与 bg 做差，最亮列即缺口 x）+
+     模拟人类轨迹把滑块拖到缺口；
+  4. 前端验证成功后**自动发出** searchMultipleExchangeByXian 检索请求；
+  5. 本脚本拦截该响应，解析并把当日汇率写库。
 
-token 复用依据：Geetest V4 的 validate token 在同一会话/短时间内对多次
-API 调用有效，符合 BOC 前端"解一次、多次查询"的行为。
+注意（重要）：BOC 的 Geetest token 是单次/单参数绑定的，不能复用——
+所以必须让前端对每个日期真实验证+真实发请求，再拦截响应写库，
+而不能截一次 token 后自己批量发请求（会返回 respStatus=02）。
 
-依赖：pip install playwright && playwright install chromium
+依赖：pip install playwright opencv-python-headless numpy pandas && playwright install chromium
 用法：
-  # 自动优先（CapSolver 可用时全自动；否则停在人工验证步骤等你拖滑块）
   python boc_scraper_pw.py
-  # 强制人工验证（跳过 CapSolver 尝试）
-  FORCE_MANUAL=1 python boc_scraper_pw.py
-  # 指定结束日期（系统时钟不可信/回拨、或在 CI 中固定缺口窗口时必填）
-  END_DATE=2026-08-20 python boc_scraper_pw.py
+  END_DATE=2026-08-09 python boc_scraper_pw.py   # 系统时钟不可信时必填
 """
 import os
-import sys
 import json
 import re
 import importlib.util
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -54,9 +49,6 @@ load_done = boc.load_done
 CURRENCIES = boc.CURRENCIES
 HISTORY_PAGE_URL = boc.HISTORY_PAGE_URL
 SEARCH_API_URL = boc.SEARCH_API_URL
-CAPTCHA_PROVIDER = boc.CAPTCHA_PROVIDER
-CAPSOLVER_API_KEY = boc.CAPSOLVER_API_KEY
-TWOCAPTCHA_API_KEY = boc.TWOCAPTCHA_API_KEY
 log = boc.log
 
 # ============================================================
@@ -64,8 +56,6 @@ log = boc.log
 # ============================================================
 DATE_FMT = "%Y-%m-%d"
 OUTAGE_START = date(2026, 6, 25)  # 缺口起点（与 verify_and_backfill 一致）
-FORCE_MANUAL = os.getenv("FORCE_MANUAL", "") in ("1", "true", "yes")
-
 PRICE_RE = re.compile(r"^\d+(\.\d+)?$")
 PRICE_FIELDS = ("现汇买入价", "现钞买入价", "现汇卖出价", "现钞卖出价", "中行折算价")
 
@@ -75,7 +65,7 @@ PRICE_FIELDS = ("现汇买入价", "现钞买入价", "现汇卖出价", "现钞
 # ============================================================
 def _is_date_str(s):
     try:
-        date.fromisoformat(str(s));
+        date.fromisoformat(str(s))
         return True
     except (ValueError, TypeError):
         return False
@@ -83,165 +73,296 @@ def _is_date_str(s):
 
 def find_missing(currency, output_file, usd_last, end_date, max_days=60):
     existing = load_done(output_file)
-    if existing:
-        max_ex = max((date.fromisoformat(s) for s in existing if _is_date_str(s)), default=None)
-        start = max(max_ex + timedelta(days=1), OUTAGE_START) if max_ex else OUTAGE_START
-    else:
-        start = max(OUTAGE_START, usd_last + timedelta(days=1))
+    existing_set = set(existing) if existing else set()
+    # 注意：必须从 OUTAGE_START 起全量比对 existing，而不能只从"最新日期+1"开始——
+    # 历史补抓可能乱序写入（如先写了 08-01/08-05/08-06），若只扫最新日期之后，
+    # 会漏掉最新日期之前的空洞（08-02/03/04）。
+    start = OUTAGE_START
     if end_date < start:
         return []  # 结束日期早于数据起点（常见于系统时钟回拨），无缺口
     missing = []
     d = start
     while d <= end_date:
-        if d.strftime(DATE_FMT) not in existing:
+        if d.strftime(DATE_FMT) not in existing_set:
             missing.append(d)
         d += timedelta(days=1)
     return sorted(missing[-max_days:])
 
 
 # ============================================================
-#  Step 1: 用 CapSolver 尝试自动解题（对 BOC 大概率失败，优雅降级）
+#  Step 1+2: Playwright 逐日期自动验证 + 拦截响应写库
 # ============================================================
-def try_capsolver_auto(captcha_id, page_url):
-    """尝试 CapSolver 自动解题。成功返回 token dict，失败返回 None。"""
-    if not CAPSOLVER_API_KEY or FORCE_MANUAL:
-        return None
-    try:
-        import capsolver
-        capsolver.api_key = CAPSOLVER_API_KEY
-        sol = capsolver.solve({
-            "type": "GeeTestTaskProxyLess",
-            "websiteURL": page_url,
-            "captchaId": captcha_id,
-            "geetestApiServerSubdomain": "immvs.igtb.bankofchina.com",
-        })
-        tok = {
-            "lotNumber": sol["lot_number"],
-            "captchaOutput": sol["captcha_output"],
-            "passToken": sol["pass_token"],
-            "genTime": str(sol["gen_time"]),
-        }
-        log.info("CapSolver 自动解题成功")
-        return tok
-    except Exception as e:  # noqa: BLE001
-        log.warning(f"CapSolver 自动解题失败（将退回人工验证）: {type(e).__name__}: {e}")
-        return None
-
-
-# ============================================================
-#  Step 2: Playwright 驱动页面，获取 token（自动失败则人工）
-# ============================================================
-def acquire_tokens(dates, currencies):
-    """
-    打开 BOC 页面，初始化验证码，获取可用于 searchMultipleExchangeByXian 的 token。
-    返回 token dict；若全程失败返回 None。
-    """
+def acquire_and_backfill(dates_by_currency):
+    """打开 BOC 页面，对每个缺失日期自动拖滑块验证；前端验证成功后自动
+    发出检索请求，本函数拦截响应写库。全程无需人工、无需 CapSolver。"""
     from playwright.sync_api import sync_playwright
+    import cv2, numpy as np, time, random
 
-    # 先尝试 CapSolver 自动（仅当你配置且未强制人工）
-    # 注：BOC 的 bind 模式 CapSolver 通常 -50103，这里只是尽最大努力
-    captcha_id = boc.GEETEST_CAPTCHA_ID
-    auto = try_capsolver_auto(captcha_id, HISTORY_PAGE_URL)
-    if auto:
-        return auto
-
-    # ---- 人工验证路径 ----
-    log.info("启动 Playwright，请在弹出的浏览器中手动完成 Geetest 验证（拖一次滑块）...")
-    captured = {}
+    _img_urls = {}
+    _written = {}
+    _cur = {}
 
     def _on_request(request):
-        # 拦截 BOC 前端发出的检索请求，从请求体截获 4 个 token
-        if SEARCH_API_URL.split("//")[-1] in request.url and request.method == "POST":
-            try:
-                body = json.loads(request.post_data or "{}")
-                rb = body.get("reqBody", {})
-                if all(k in rb for k in ("lotNumber", "captchaOutput", "passToken", "genTime")):
-                    captured.update({
-                        "lotNumber": rb["lotNumber"],
-                        "captchaOutput": rb["captchaOutput"],
-                        "passToken": rb["passToken"],
-                        "genTime": rb["genTime"],
-                    })
-                    log.info("已截获 Geetest token（人工验证成功）")
-            except Exception:
-                pass
+        u = request.url
+        if "assests/20/slide/" in u:
+            if "fullbg" in u:
+                _img_urls["fullbg"] = u
+                log.info(f"  [req] fullbg 已捕获")
+            elif "/bg/" in u:
+                _img_urls["bg"] = u
+                log.info(f"  [req] bg 已捕获")
+            elif "/slice/" in u:
+                _img_urls["slice"] = u
+                log.info(f"  [req] slice 已捕获")
+
+    def _on_response(response):
+        u = response.url
+        if "searchMultipleExchangeByXian" not in u:
+            return
+        cur = _cur.get("currency")
+        d = _cur.get("date")
+        if not cur or not d:
+            return
+        key = (cur, d.strftime(DATE_FMT))
+        if key in _written:
+            return
+        try:
+            j = response.json()
+        except Exception:
+            return
+        rb = j.get("respBody", {})
+        if rb.get("respStatus") != "00":
+            return
+        data = rb.get("data", [])
+        rows = parse_response(data, cur, d)
+        rec = select_daily_record(rows, d)
+        if rec is None:
+            log.warning(f"  [{d.strftime(DATE_FMT)}/{cur}] 响应无匹配记录，跳过")
+            return
+        for f in PRICE_FIELDS:
+            v = str(rec.get(f, "")).strip()
+            if not v or not PRICE_RE.match(v):
+                log.warning(f"  [{d.strftime(DATE_FMT)}/{cur}] {f} 校验失败: {v}")
+                return
+        rec.pop("_t", None)
+        append_row(rec, CURRENCIES[cur])
+        _written[key] = True
+        log.info(f"  ✓ 补齐 {cur} {d.strftime(DATE_FMT)} 折算价={rec.get('中行折算价', '?')}")
+
+    def _compute_gap_x():
+        """返回 (拖动原始距离, 图片宽度)。
+        标定结论（_calib.py 14 轮）：直接用缺口 argmax/中心拖必被拒（偏右~40px），
+        正确公式 = 缺口中心(ncenter) − 拼图块图形中心(scenter≈39.5)。"""
+        full = cv2.imread(str(_THIS / "_pw_fullbg.png"))
+        bg = cv2.imread(str(_THIS / "_pw_bg.png"))
+        sl = cv2.imread(str(_THIS / "_pw_slice.png"))
+        if full is None or bg is None or full.shape != bg.shape:
+            return None, None
+        diff = cv2.absdiff(full, bg)
+        dg = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+        th = max(40.0, dg.mean() * 2.2)
+        ys, xs = np.where(dg > th)
+        if len(xs) == 0:
+            return None, None
+        ncenter = (int(xs.min()) + int(xs.max())) / 2.0
+        # 拼图块图形中心（80x80 元素内）：优先用 alpha/深色掩码，退化用 40.0
+        scenter = 40.0
+        if sl is not None:
+            if sl.shape[2] == 4:
+                a = sl[:, :, 3]
+                sy, sx = np.where(a > 128)
+                if len(sx):
+                    scenter = (int(sx.min()) + int(sx.max())) / 2.0
+            else:
+                g = cv2.cvtColor(sl, cv2.COLOR_BGR2GRAY)
+                sy, sx = np.where(g < 200)
+                if len(sx):
+                    scenter = (int(sx.min()) + int(sx.max())) / 2.0
+        dist_raw = ncenter - scenter
+        return dist_raw, full.shape[1]  # 拖动原始距离、图片宽度
+
+    def _img_track_width(page):
+        for sel in (".geetest_bg", ".geetest_canvas_bg", ".geetest_widget"):
+            el = page.locator(sel)
+            if el.count():
+                wb = el.first.bounding_box()
+                if wb and wb["width"] > 0:
+                    return wb["width"]
+        return 300.0
+
+    def _get_gap_x(timeout=120):
+        # BOC Geetest 为 bind 模式：点查询后才开始加载整套 SDK（gt4.js→挑战→图片），
+        # 首次冷加载实测要 25~40s，故等待窗口必须给足（默认 120 次 × 0.5s = 60s）。
+        for _ in range(timeout):
+            if "fullbg" in _img_urls and "bg" in _img_urls and "slice" in _img_urls:
+                break
+            time.sleep(0.5)
+        else:
+            return None, None
+        try:
+            r1 = requests.get(_img_urls["fullbg"], timeout=20)
+            open(str(_THIS / "_pw_fullbg.png"), "wb").write(r1.content)
+            r2 = requests.get(_img_urls["bg"], timeout=20)
+            open(str(_THIS / "_pw_bg.png"), "wb").write(r2.content)
+            r3 = requests.get(_img_urls["slice"], timeout=20)
+            open(str(_THIS / "_pw_slice.png"), "wb").write(r3.content)
+        except Exception:
+            return None, None
+        return _compute_gap_x()
+
+    def _drag_natural(page, box, dist):
+        """更拟人：缓起-加速-缓停 (ease-in-out / smoothstep) + 微超调 + 回拉精确位。
+        Geetest 风控对纯 ease-out + 均匀停顿的模式识别率较高，加入超调回拉显著降低拒绝率。
+        """
+        sx = box["x"] + box["width"] / 2
+        sy = box["y"] + box["height"] / 2
+        page.mouse.move(sx, sy)
+        page.mouse.down()
+        overshoot = random.uniform(2.0, 5.5)
+        target = sx + dist + overshoot
+        steps = 70
+
+        def ease_io(t):
+            return t * t * (3 - 2 * t)
+
+        for i in range(1, steps + 1):
+            t = i / steps
+            x = sx + (target - sx) * ease_io(t)
+            y = sy + random.uniform(-1.8, 1.8)
+            page.mouse.move(x, y)
+            if random.random() < 0.22:
+                time.sleep(random.uniform(0.05, 0.14))
+            time.sleep(random.uniform(0.008, 0.020))
+        time.sleep(random.uniform(0.05, 0.12))
+        page.mouse.move(sx + dist, sy + random.uniform(-1.0, 1.0))
+        time.sleep(random.uniform(0.08, 0.18))
+        page.mouse.up()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)  # 人工需可见窗口
+        browser = p.chromium.launch(headless=False, args=["--disable-blink-features=AutomationControlled"])
         page = browser.new_page()
         page.on("request", _on_request)
+        page.on("response", _on_response)
         page.goto(HISTORY_PAGE_URL, wait_until="load", timeout=60000)
+        page.wait_for_timeout(2000)  # 等 Geetest bind 脚本就绪，否则首次点击不初始化
+        log.info("页面与 Geetest bind 就绪")
 
-        # 填第一个日期 + 第一个币种，点查询以初始化并弹出验证码
-        first_date = dates[0]
-        first_cur = list(currencies.keys())[0]
-        page.fill("#searchTime", first_date.strftime("%Y-%m-%d"))
-        page.select_option("#pjname", first_cur)
-        page.click("#searchbtn")
-
-        # 等待用户完成验证：监听请求截获 token 后自动继续，最长等 5 分钟
-        import time
-        deadline = time.time() + 300
-        while not captured and time.time() < deadline:
-            time.sleep(1)
-        if not captured:
-            log.warning("5 分钟内未截获 token，验证可能未完成（请确认滑块已拖完）")
-        browser.close()
-
-    return captured or None
-
-
-# ============================================================
-#  Step 3: 用 token 直接补全所有缺失日期（requests，复用 token）
-# ============================================================
-def backfill_with_token(token, missing_by_currency, session):
-    filled, failed, skipped = {}, {}, {}
-    for currency, dates in missing_by_currency.items():
-        filled.setdefault(currency, [])
-        failed.setdefault(currency, [])
-        skipped.setdefault(currency, [])
-        for d in dates:
-            ok = False
-            try:
-                req_body = {
-                    "pjrq": d.strftime(DATE_FMT),
-                    "pjname": currency,
-                    "lotNumber": token["lotNumber"],
-                    "captchaOutput": token["captchaOutput"],
-                    "passToken": token["passToken"],
-                    "genTime": token["genTime"],
-                    "pageSize": "1000",
-                    "page": "1",
-                }
-                payload = {"reqHeader": {}, "reqBody": req_body}
-                r = session.post(SEARCH_API_URL, json=payload,
-                                 headers={"content-type": "application/json"}, timeout=30)
-                r.encoding = "utf-8"
-                j = r.json()
-                rb = j.get("respBody", {})
-                if rb.get("respStatus") != "00":
-                    raise RuntimeError(f"接口返回 {rb.get('respStatus')}（token 可能过期，请重跑）")
-                data = rb.get("data", [])
-                rows = parse_response(data, currency, d)
-                rec = select_daily_record(rows, d)
-                if rec is None:
-                    skipped[currency].append(d)
+        total = sum(len(v) for v in dates_by_currency.values())
+        done = 0
+        for currency, dates in dates_by_currency.items():
+            for d in dates:
+                _cur = {"currency": currency, "date": d}
+                key = (currency, d.strftime(DATE_FMT))
+                # 每个日期重新加载页面，保证 Geetest 处于干净的 bind 初始态，
+                # 避免上一次验证成功的动画/状态污染下一次初始化（实测首日后会失败）。
+                page.goto(HISTORY_PAGE_URL, wait_until="load", timeout=60000)
+                page.wait_for_timeout(2000)
+                _img_urls.clear()
+                page.evaluate(
+                    "(dd) => { $('#searchTime').val(dd); $('#searchTime').trigger('change'); $('#searchTime').blur(); }",
+                    d.strftime(DATE_FMT))
+                page.select_option("#pjname", currency)
+                # Geetest bind 容器会盖住 #searchbtn 吞掉命中检测，必须用 force 直接派发
+                # 受信任的点击事件，否则验证码不初始化（且上一日期的 ghost 浮层也会拦截）。
+                try:
+                    page.locator("#searchbtn").click(force=True, timeout=15000)
+                except Exception as e:
+                    log.error(f"  点击查询按钮失败: {e}")
                     continue
-                # 校验
-                for f in PRICE_FIELDS:
-                    v = str(rec.get(f, "")).strip()
-                    if not v or not PRICE_RE.match(v):
-                        raise ValueError(f"{f} 校验失败: {v}")
-                rec.pop("_t", None)
-                append_row(rec, CURRENCIES[currency])
-                filled[currency].append(d)
-                ok = True
-            except Exception as e:  # noqa: BLE001
-                log.warning(f"  [{d.strftime(DATE_FMT)}/{currency}] 失败: {e}")
-                failed[currency].append((d, str(e)))
-            if ok:
-                log.info(f"  ✓ 补齐 {currency} {d.strftime(DATE_FMT)} 折算价={rec['中行折算价'] if ok else '?'}")
-    return {"filled": filled, "failed": failed, "skipped": skipped}
+                log.info(f"→ {currency} {d.strftime(DATE_FMT)}：初始化验证码并自动拖")
+                page.wait_for_timeout(500)
+                last_bg = None
+                max_attempts = 8
+                for attempt in range(max_attempts):
+                    if _written.get(key):
+                        break
+                    if attempt > 0:
+                        # 重试：整页重驱（刷新+设日期+点查询），保证干净 Geetest 初始态。
+                        # 不用 .geetest_refresh：它不可靠且会打断在途的验证/搜索请求。
+                        page.goto(HISTORY_PAGE_URL, wait_until="load", timeout=60000)
+                        page.wait_for_timeout(2000)
+                        _img_urls.clear()
+                        page.evaluate(
+                            "(dd) => { $('#searchTime').val(dd); $('#searchTime').trigger('change'); $('#searchTime').blur(); }",
+                            d.strftime(DATE_FMT))
+                        page.select_option("#pjname", currency)
+                        try:
+                            page.locator("#searchbtn").click(force=True, timeout=15000)
+                        except Exception as e:
+                            log.error(f"  重试点击查询按钮失败: {e}")
+                            continue
+                    # 等验证码面板出现（SDK 冷加载慢，首次可到 30~40s）
+                    panel_ok = False
+                    for _ in range(90):
+                        try:
+                            if page.locator(".geetest_box_slide_button").bounding_box(timeout=800):
+                                panel_ok = True
+                                break
+                        except Exception:
+                            pass
+                        time.sleep(0.5)
+                    if not panel_ok:
+                        log.error("  验证码面板未出现")
+                        time.sleep(2)
+                        continue
+                    gx, img_w = _get_gap_x(timeout=90)
+                    if gx is not None and img_w:
+                        log.info(f"    [try{attempt}] 缺口 x={gx} img_w={img_w}")
+                    if gx is None or not img_w:
+                        log.error("  未捕获滑块图片，无法计算缺口")
+                        time.sleep(2)
+                        continue
+                    if _img_urls.get("bg") == last_bg:
+                        gx += random.choice([-7, -5, -3, 3, 5, 7])
+                    last_bg = _img_urls.get("bg")
+                    try:
+                        btn = page.locator(".geetest_box_slide_button")
+                        box = btn.bounding_box(timeout=8000)
+                    except Exception:
+                        box = None
+                    if box is None:
+                        time.sleep(3)
+                        if _written.get(key):
+                            break
+                        continue
+                    try:
+                        tb = page.locator(".geetest_box_button").bounding_box(timeout=8000)
+                        track_w = tb["width"] if tb else 302.0
+                    except Exception:
+                        track_w = 302.0
+                    # 裁剪到合法拖动范围：argmax 可能因噪点落到 [0,300] 之外（如 239），
+                    # 而最大可拖 = track_w - button_w ≈ 221，超出会被轨道卡住 → 失败。
+                    button_w = box["width"]
+                    max_drag = track_w - button_w - 4
+                    dist = gx * (track_w / float(img_w))
+                    dist = max(8.0, min(dist, max_drag))
+                    start_x = box["x"]
+                    _drag_natural(page, box, dist)
+                    # 拖完后轮询：①写库成功 → 收工；②按钮复位回起点 → 验证失败，重试；
+                    # ③按钮消失（成功动画）→ 继续等响应（实测响应可慢至 60~75s）。
+                    waited = 0
+                    while waited < 75 and not _written.get(key):
+                        time.sleep(1)
+                        waited += 1
+                        try:
+                            nb = page.locator(".geetest_box_slide_button").bounding_box(timeout=600)
+                            if nb is None:
+                                continue
+                            if abs(nb["x"] - start_x) < 2:
+                                log.info(f"    [try{attempt}] 验证失败（滑块复位）")
+                                break
+                        except Exception:
+                            pass
+                    if _written.get(key):
+                        break
+                if _written.get(key):
+                    done += 1
+                    log.info(f"  ✓ 完成 ({done}/{total})")
+                else:
+                    log.error(f"  ✗ 失败：{currency} {d.strftime(DATE_FMT)}")
+        browser.close()
+        log.info(f"== 补全结束：成功 {done}/{total} ==")
+        return done, total
 
 
 # ============================================================
@@ -278,27 +399,12 @@ def main():
         return
 
     log.info("=" * 60)
-    log.info("中国银行外汇牌价 · Playwright 补全（Geetest V4 bind 模式）")
-    log.info(f"运行日期: {today} | CapSolver自动: {'关' if FORCE_MANUAL or not CAPSOLVER_API_KEY else '开'}")
+    log.info("中国银行外汇牌价 · Playwright 自动补全（Geetest V4 bind 模式）")
+    log.info(f"运行日期: {today}")
     log.info("=" * 60)
 
-    token = acquire_tokens(
-        [d for d in missing_by_currency["美元"]], CURRENCIES
-    )
-    if not token:
-        log.error("未能获取 Geetest token（CapSolver 失败且未人工验证），退出。")
-        return
-
-    session = boc.make_session()
-    result = backfill_with_token(token, missing_by_currency, session)
-
-    # 报告
-    for c in CURRENCIES:
-        f = len(result["filled"].get(c, []))
-        fl = len(result["failed"].get(c, []))
-        sk = len(result["skipped"].get(c, []))
-        log.info(f"  · {c}: 已补 {f} | 跳过 {sk} | 失败 {fl}")
-    log.info("== 补全结束 ==")
+    done, total = acquire_and_backfill(missing_by_currency)
+    log.info(f"== 总结：成功 {done}/{total} ==")
 
 
 if __name__ == "__main__":
