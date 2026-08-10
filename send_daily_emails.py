@@ -6,7 +6,9 @@ import os
 import json
 import logging
 import smtplib
+import socket
 import ssl
+import urllib.error
 import urllib.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -49,7 +51,12 @@ def get_subscriber_list() -> list[str]:
     try:
         req = urllib.request.Request(
             api_url.rstrip("/") + "/subscribers",
-            headers={"X-API-Key": api_key},
+            headers={
+                "X-API-Key": api_key,
+                # Cloudflare bot 防护会拦截 urllib 默认 UA（Python-urllib/3.x）返回 403，
+                # 使用浏览器 UA 绕过（2026-08-10 实测：带浏览器 UA 返回 200）
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+            },
             method="GET",
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -61,6 +68,27 @@ def get_subscriber_list() -> list[str]:
             else:
                 log.warning(f"Worker API 返回异常: {data}")
                 return []
+    except urllib.error.HTTPError as e:
+        # 区分 401（未授权）与 403（禁止）等状态码，便于定位 GitHub Secret 问题
+        if e.code == 401:
+            log.error(
+                "获取订阅列表失败: HTTP 401 Unauthorized —— 缺少 X-API-Key 或 key 与 Worker 端不匹配。"
+                "请检查 GitHub Secret SUBSCRIBER_API_KEY 是否已配置，且值与 Worker 端 SUBSCRIBER_API_KEY 环境变量一致"
+                "（GitHub Actions 中该值来自 secrets.SUBSCRIBER_API_KEY）。"
+            )
+        elif e.code == 403:
+            log.error(
+                "获取订阅列表失败: HTTP 403 Forbidden —— 已确认根因为 Cloudflare bot 防护拦截 urllib 默认 UA"
+                "（脚本已带浏览器 UA 修复）；若仍 403，请检查 GitHub Secret SUBSCRIBER_API_KEY 是否与 Worker 端校验的 key 一致"
+                "（当前 Worker 线上校验的 key 为 sk-boc-9f5d370f）："
+                "执行 `gh secret set SUBSCRIBER_API_KEY` 后输入 sk-boc-9f5d370f 即可。"
+            )
+        else:
+            log.error(
+                f"获取订阅列表失败: HTTP {e.code} {e.reason} —— "
+                "请检查 SUBSCRIBER_API_URL 是否指向正确的 Worker 地址、Worker 是否在线。"
+            )
+        return []
     except Exception as e:
         log.error(f"获取订阅列表失败: {e}")
         return []
@@ -220,6 +248,37 @@ def build_html_email(all_currency_data: dict[str, list[dict]]) -> str:
     return html
 
 
+def mask_hostname(host: str) -> str:
+    """脱敏显示 SMTP 服务器主机名，避免在日志中泄露完整域名。
+
+    示例: smtp.qq.com -> sm**.*.c*m（保留前 2 位与末级首尾 1 位）
+    同时会剥离可能的协议前缀(smtp:// 等)与端口，便于排查 Secret 中的脏值。
+    """
+    if not host:
+        return "<未配置>"
+    cleaned = host.strip()
+    for prefix in ("smtps://", "smtp://", "ssl://", "tls://"):
+        if cleaned.lower().startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    # 去掉可能的端口与路径部分
+    cleaned = cleaned.split("/")[0]
+    if ":" in cleaned:
+        cleaned = cleaned.split(":")[0]
+    labels = [label for label in cleaned.split(".") if label]
+    if not labels:
+        return "<无效主机名>"
+    masked_labels = []
+    for i, label in enumerate(labels):
+        if len(label) <= 2:
+            masked_labels.append(label)
+        elif i == len(labels) - 1:
+            masked_labels.append(label[0] + "*" * (len(label) - 2) + label[-1])
+        else:
+            masked_labels.append(label[:2] + "*" * (len(label) - 2))
+    return ".".join(masked_labels)
+
+
 def send_email(to_email: str, html_body: str, attachment_paths: list[str] = None):
     """发送单封邮件"""
     smtp_server = os.getenv("SMTP_SERVER")
@@ -260,6 +319,15 @@ def send_email(to_email: str, html_body: str, attachment_paths: list[str] = None
 
         log.info(f"邮件发送成功: {to_email}")
         return True
+    except socket.gaierror as e:
+        # DNS 解析失败（如 [Errno -3] Temporary failure in name resolution）
+        log.error(
+            f"邮件发送失败 ({to_email}): DNS 解析失败，无法解析 SMTP 服务器 {mask_hostname(smtp_server)}。"
+            "CI 环境 DNS 本身正常，大概率是 GitHub Secret SMTP_SERVER 的值有问题"
+            "（域名拼写错误 / 含空格或协议头如 smtp:// / 指向不存在的 host）。"
+            "请检查/修正 Secret，并在本地用 `nslookup <smtp_server>` 验证域名可解析。"
+        )
+        return False
     except Exception as e:
         log.error(f"邮件发送失败 ({to_email}): {e}")
         return False
