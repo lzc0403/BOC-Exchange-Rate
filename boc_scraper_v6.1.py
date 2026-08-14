@@ -350,25 +350,176 @@ def select_daily_record(rows: list[dict], d: date) -> dict | None:
 # ============================================================
 #  CSV 读写 / 去重（契约：列顺序、utf-8-sig、按查询日期去重）
 # ============================================================
+# CSV 列顺序契约（写入/校验/读取共用；勿改，前端与邮箱附件依赖此顺序）
+CSV_COLUMNS = ["货币名称", "现汇买入价", "现钞买入价", "现汇卖出价",
+               "现钞卖出价", "中行折算价", "发布时间", "查询日期"]
+# 必填价格字段：查询日 + 五个价格字段，写入前校验（fail-closed，不写坏数据）
+REQUIRED_FIELDS = ("现汇买入价", "现钞买入价", "现汇卖出价", "现钞卖出价", "中行折算价")
+# 价格字段合法格式：非负数字（可含 1 位以上小数），如 688.8 / 691.72 / 673.0
+_PRICE_RE = re.compile(r"^\d+(\.\d+)?$")
+
+
+class CsvCorruptError(Exception):
+    """CSV 文件损坏（无法解析/列缺失/日期列不可用）时的哨兵异常。
+
+    由 load_done 在损坏场景抛出，调用方（scrape_today 等）据此中止或告警，
+    绝不允许静默当作“无任何历史数据”而触发灾难性重复补全。
+    """
+
+
+def _is_iso_query_date(s: str) -> bool:
+    """判断字符串是否为合法 YYYY-MM-DD 查询日期。
+
+    用于 load_done 的纵深防御：截断恰好落在日期值中间时 pandas 会把
+    半截字符串当普通值（如 "2026-08-10" → "2026"），不产生 NaN，此函数
+    可将该形态识别为损坏。
+    """
+    try:
+        date.fromisoformat(str(s).strip())
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def load_done(output_file: str) -> set[str]:
-    """读取已有 CSV，返回已记录的 查询日期 集合（用于按天去重）。"""
+    """读取已有 CSV，返回已记录的 查询日期 集合（用于按天去重）。
+
+    行为契约（既有调用/测试兼容）：
+      - 文件不存在        → 返回空集合 set()；
+      - 文件正常可解析    → 返回 set(查询日期列)，Date 型统一转 str；
+      - 文件存在但损坏    → log.error 明确告警并抛出 CsvCorruptError，
+                            由调用方决定中止/告警（不允许静默当作无数据）。
+
+    注意：正常路径返回类型保持 set[str]，异常路径为 CsvCorruptError。
+    """
     p = Path(output_file)
     if not p.exists():
         return set()
     try:
         df = pd.read_csv(p)
-        return set(df["查询日期"].astype(str))
+        if "查询日期" not in df.columns:
+            raise KeyError("CSV 缺少必需列: 查询日期")
+        # 损坏绝不静默当空：仅表头（无数据行）或 查询日期列存在 NaN
+        # （行宽<表头 / 尾部截断 / 日期为空 均会落到 NaN）→ 抛 CsvCorruptError
+        if df.empty:
+            raise ValueError("CSV 仅表头、无任何数据行（疑似被截断/清空）")
+        if df["查询日期"].isna().any():
+            n_nan = int(df["查询日期"].isna().sum())
+            raise ValueError(f"CSV 查询日期列含 {n_nan} 个 NaN（疑似行宽不一致/尾部截断）")
+        # 纵深防御：查询日期必须是合法 YYYY-MM-DD（截断恰好落在日期值中间时
+        # pandas 会当字符串而非 NaN，如 "2026-08-10" → "2026"）→ 仍判损坏
+        ds_series = df["查询日期"].astype(str)
+        bad_dates = [s for s in ds_series if not _is_iso_query_date(s)]
+        if bad_dates:
+            raise ValueError(
+                f"CSV 查询日期列含 {len(bad_dates)} 个非法格式（疑似尾部截断）: "
+                f"{sorted(set(bad_dates))[:5]}{'...' if len(set(bad_dates)) > 5 else ''}"
+            )
+        return set(ds_series)
+    except CsvCorruptError:
+        raise
+    except Exception as e:
+        # 损坏绝不静默当空集：明确告警后抛出，调用链据此中止/告警
+        log.error("CSV 损坏，拒绝按空集处理: %s (%s: %s)",
+                  output_file, type(e).__name__, e)
+        raise CsvCorruptError(
+            f"CSV 文件损坏，拒绝按空集处理: {output_file} ({type(e).__name__}: {e})"
+        ) from e
+
+
+def _validate_row(row: dict) -> tuple[bool, str]:
+    r"""写前校验一条待写记录（fail-closed：非法数据拒绝写入，不写坏数据）。
+
+    校验项：
+      ① 必需列齐全且非空：五种价格字段 + 查询日期（货币名称/发布时间可选填）；
+      ② 价格字段必须是合法数值（正则 ^\d+(\.\d+)?$，且不得为负）。
+    返回 (True, "") 或 (False, "具体原因")。
+    """
+    if not isinstance(row, dict):
+        return (False, f"row 非 dict: {type(row).__name__}")
+    if not str(row.get("查询日期", "")).strip():
+        return (False, "查询日期为空")
+    for f in REQUIRED_FIELDS:
+        v = row.get(f)
+        if v is None or str(v).strip() == "":
+            return (False, f"必填字段 {f} 为空")
+        sv = str(v).strip()
+        if not _PRICE_RE.match(sv):
+            return (False, f"{f} 非合法数值: '{sv}'")
+    return (True, "")
+
+
+def _append_row_atomic(row: dict, output_file: str) -> bool:
+    """原子写实现：读回现有 DataFrame → pd.concat → 写同目录 *.tmp → os.replace。
+
+    进程在中途崩溃/被 kill 时，目标文件要么是旧完整版本、要么是新完整版本，
+    绝不出现半行/乱码/BOM 错位的中间态。保持既有列顺序与 utf-8-sig 编码契约。
+    返回 True 表示写入成功；False 表示校验失败被拒绝（不抛异常打断调用方）。
+    """
+    path = Path(output_file)
+    # 文件不存在 → 新建（带表头）；文件已存在 → 读回现有 DataFrame 后整体重写
+    if path.exists():
+        try:
+            old_df = pd.read_csv(path)
+        except Exception as e:
+            # 目标文件已损坏：拒绝叠加，先抛给调用方（fail-closed，不写坏数据）
+            log.error("写入前发现目标 CSV 已损坏，拒绝继续写入: %s (%s: %s)",
+                      output_file, type(e).__name__, e)
+            raise CsvCorruptError(
+                f"目标 CSV 已损坏，拒绝继续写入: {output_file} ({type(e).__name__}: {e})"
+            ) from e
+        # 必需列族缺失（截断/乱码/半行）即视为损坏：拒绝叠加，防止把坏数据当“历史遗留”
+        missing = [c for c in CSV_COLUMNS if c not in old_df.columns]
+        if missing:
+            log.error("写入前发现目标 CSV 缺少必需列，拒绝继续写入: %s 缺 %s",
+                      output_file, missing)
+            raise CsvCorruptError(
+                f"目标 CSV 缺少必需列，拒绝继续写入: {output_file} 缺 {missing}"
+            )
+        # 合法文件仅按契约列顺序重排（不增删列、不补空列）
+        old_df = old_df[CSV_COLUMNS]
+    else:
+        old_df = pd.DataFrame(columns=CSV_COLUMNS)
+
+    new_df = pd.DataFrame([row])[CSV_COLUMNS]
+    combined = pd.concat([old_df, new_df], ignore_index=True)
+
+    # 同目录临时文件 + os.replace 原子替换（跨平台；编辑器重启保留旧文件完整）
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        combined.to_csv(tmp, index=False, encoding="utf-8-sig")
+        os.replace(tmp, path)
     except Exception:
-        return set()
+        # 写临时文件失败：清理残留 tmp，避免下次写入读到半成品
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise
+    # 写成功后清理可能残留的旧 tmp（正常情况下 os.replace 已消费掉）
+    try:
+        if tmp.exists():
+            tmp.unlink()
+    except OSError:
+        pass
+    return True
 
 
-def append_row(row: dict, output_file: str):
-    """追加一行；文件不存在时写表头（utf-8-sig，兼容 Excel/前端）。"""
+def append_row(row: dict, output_file: str) -> bool:
+    """追加一行（原子写，utf-8-sig，兼容 Excel/前端）。
+
+    写前做 fail-closed 前置校验：必填字段（查询日期 + 五个价格字段）非空、
+    价格可解析为数值；非法则 log.warning 并拒绝写入，返回 False。
+    写入成功返回 True；目标文件已损坏时抛 CsvCorruptError（不覆盖坏数据）。
+    """
     # 写出前剔除内部字段
     row = {k: v for k, v in row.items() if k != "_t"}
-    df = pd.DataFrame([row])
-    header = not Path(output_file).exists()
-    df.to_csv(output_file, mode="a", index=False, header=header, encoding="utf-8-sig")
+    valid, reason = _validate_row(row)
+    if not valid:
+        log.warning("append_row 拒绝写入（数据非法）: %s | row=%s", reason, row)
+        return False
+    return _append_row_atomic(row, output_file)
 
 
 # ============================================================
@@ -414,7 +565,12 @@ def scrape_today():
         ds = d.strftime("%Y-%m-%d")
 
         # 2) 去重：已写入该日期的币种直接跳过（幂等，防重复/补抓前一天）
-        done = {c: load_done(f) for c, f in CURRENCIES.items()}
+        try:
+            done = {c: load_done(f) for c, f in CURRENCIES.items()}
+        except CsvCorruptError as e:
+            # 损坏绝不静默当作“无历史数据”：中止本次运行，等待人工修复/告警
+            log.error("CSV 损坏，本次抓取中止（拒绝按空集处理触发重复补全）: %s", e)
+            return
         pending = {c: f for c, f in CURRENCIES.items() if ds not in done[c]}
         if not pending:
             log.info(f"{ds} 所有币种已存在记录，跳过")
@@ -446,7 +602,18 @@ def scrape_today():
                     ok = True
                     break
                 rec.pop("_t", None)
-                append_row(rec, output_file)
+                try:
+                    appended = append_row(rec, output_file)
+                except CsvCorruptError as e:
+                    # 目标 CSV 已损坏：中止本次运行，等待人工修复（fail-closed）
+                    log.error("CSV 损坏，本次抓取中止: %s", e)
+                    return
+                if not appended:
+                    # 前置校验拒绝写入（必填缺失/价格非法）：不计入 done，
+                    # 下次运行仍会重试该日，绝不把坏数据标记为“已完成”
+                    log.error(f"  [{ds}/{currency}] 记录未通过写前校验，拒绝写入且不计入已完成")
+                    ok = False
+                    break
                 done[currency].add(ds)
                 log.info(f"  ✓ 已写入 {output_file} | {ds} {currency} {rec['发布时间']} 折算价={rec['中行折算价']}")
                 ok = True

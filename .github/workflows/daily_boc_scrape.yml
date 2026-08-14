@@ -16,13 +16,13 @@ on:
           - backfill
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 jobs:
   scrape-exchange-rates:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -68,6 +68,11 @@ jobs:
           echo "== 运行每日模式(daily): boc_scraper_pw.py (Playwright 自动滑块) =="
           END_DATE=$(date +%F) xvfb-run -a python boc_scraper_pw.py
         fi
+
+    - name: Validate CSV data before commit
+      # 数据门禁：校验完整性失败即 fail（非 0 退出码），不提交坏数据
+      run: |
+        python verify_csv.py
 
     - name: Send daily emails to subscribers
       continue-on-error: true
