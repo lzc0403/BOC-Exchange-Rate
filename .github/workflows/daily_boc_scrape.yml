@@ -79,6 +79,8 @@ jobs:
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         SUBSCRIBER_API_URL: ${{ secrets.SUBSCRIBER_API_URL }}
         SUBSCRIBER_API_KEY: ${{ secrets.SUBSCRIBER_API_KEY }}
+        # 退订链接签名密钥，须与 Cloudflare Worker `wrangler secret put UNSUBSCRIBE_SECRET` 配置同值；未配置时脚本回退使用 SUBSCRIBER_API_KEY
+        UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
         UNSUBSCRIBE_BASE_URL: "https://lzc0403.github.io/BOC-Exchange-Rate/"
       run: |
         python send_daily_emails.py

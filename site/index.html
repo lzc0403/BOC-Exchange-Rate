@@ -672,12 +672,12 @@ document.getElementById('subscribeForm').addEventListener('submit', async (e) =>
     btn.disabled = false; btn.textContent = '立即订阅';
   }
 });
+// 退订：不再提供"仅凭邮箱即可退订"的入口（无签名退订链接可被越权利用）。
+// 真正的带签名退订链接由 send_daily_emails.py 在订阅邮件中生成并发送给用户，
+// 本站仅展示提示文案，指引用户使用邮件内的退订链接。
 document.getElementById('unsubscribeLink').addEventListener('click', (e) => {
   e.preventDefault();
-  const email = prompt('请输入要退订的邮箱地址：');
-  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    window.open(API_URL + '/unsubscribe?email=' + encodeURIComponent(email), '_blank');
-  }
+  alert('请使用您收到的订阅邮件中的退订链接完成退订。');
 });
 </script>
 </body>

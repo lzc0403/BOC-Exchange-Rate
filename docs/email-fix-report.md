@@ -20,14 +20,14 @@ CI 日志：
 
 ### 问题 A：HTTP 403 —— Cloudflare bot 防护拦截 urllib 默认 UA（主因，已实锤）
 
-**不是 Secret 值错误**。`SUBSCRIBER_API_KEY`（=`sk-boc-9f5d370f`）与 `SUBSCRIBER_API_URL` 均已确认正确。
+**不是 Secret 值错误**。`SUBSCRIBER_API_KEY`（值已从本文档移除，见第 3 节轮换说明）与 `SUBSCRIBER_API_URL` 均已确认正确（注：该密钥后已轮换，本文档不再保留真实值）。
 
 本地复现证据（2026-08-10）：
 
 | 请求方式 | 结果 |
 |---|---|
-| urllib + `X-API-Key: sk-boc-9f5d370f` + **默认 UA**（`Python-urllib/3.x`） | **HTTP 403 Forbidden** |
-| urllib + `X-API-Key: sk-boc-9f5d370f` + **浏览器 UA**（`Mozilla/5.0 ... Chrome/126`） | **HTTP 200**，`success=true`，返回 4 个订阅者 |
+| urllib + `X-API-Key: <已轮换>` + **默认 UA**（`Python-urllib/3.x`） | **HTTP 403 Forbidden** |
+| urllib + `X-API-Key: <已轮换>` + **浏览器 UA**（`Mozilla/5.0 ... Chrome/126`） | **HTTP 200**，`success=true`，返回 4 个订阅者 |
 
 - 结论：Cloudflare 对 `boc-subscription-api.lg111481.workers.dev` 启用了 bot 防护，拦截 `Python-urllib/3.x` 默认 UA → 返回 403。
 - `send_daily_emails.py` 的 `get_subscriber_list()` 之前只用 `X-API-Key` 头、没有显式 `User-Agent`，`urllib` 会发送默认 UA，因此在 CI 中触发 403。
@@ -61,7 +61,7 @@ CI 日志：
 ### 新增错误提示示例
 
 - **401**：提示"缺少 X-API-Key 或 key 与 Worker 端不匹配，请检查 GitHub Secret SUBSCRIBER_API_KEY 是否已配置"。
-- **403**：提示"Worker 返回 403，可能是 Cloudflare bot 防护拦截 urllib 默认 UA（已加浏览器 UA 修复）或 Secret SUBSCRIBER_API_KEY 与 Worker 端不一致；请更新 Secret 为 `sk-boc-9f5d370f`"。
+- **403**：提示"Worker 返回 403，可能是 Cloudflare bot 防护拦截 urllib 默认 UA（已加浏览器 UA 修复）或 Secret SUBSCRIBER_API_KEY 与 Worker 端不一致；请更新 Secret"。**（密钥值已从本文档移除）**
 - **其他 HTTP 状态码**：提示检查 `SUBSCRIBER_API_URL` 是否指向正确的 Worker 地址。
 - **DNS 解析失败（gaierror）**：`邮件发送失败 (xxx): DNS 解析失败，无法解析 SMTP 服务器 <脱敏域名>。CI 环境 DNS 本身正常，大概率是 GitHub Secret SMTP_SERVER 的值有问题……请检查/修正 Secret，并在本地用 nslookup <smtp_server> 验证域名可解析。`
 
@@ -69,14 +69,9 @@ CI 日志：
 
 ## 3. Secret 状态与修复指令
 
-### 3.1 `SUBSCRIBER_API_KEY` —— ✅ 已确认正确，无需修改
+### 3.1 `SUBSCRIBER_API_KEY` —— ✅ 已确认正确（后已轮换，本文档不再保留真实值）
 
-- 当前值：`sk-boc-9f5d370f`（与 Worker 端校验 key 一致）。
-- 若未来需要重设：
-  ```bash
-  gh secret set SUBSCRIBER_API_KEY --repo lzc0403/BOC-Exchange-Rate
-  # 输入：sk-boc-9f5d370f
-  ```
+- 当前值：**已从本文档移除**。该密钥已按安全要求轮换，历史值作废；如需查看/重设，请通过 GitHub Secrets 与 Worker secrets 管理，勿在文档中留存真实值。
 
 ### 3.2 `SUBSCRIBER_API_URL` —— ✅ 已确认正确，无需修改
 
