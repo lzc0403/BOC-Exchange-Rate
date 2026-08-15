@@ -5,7 +5,7 @@ compatibility_date = "2026-05-01"
 # KV namespace for storing subscriber emails
 [[kv_namespaces]]
 binding = "BOC_SUBSCRIBERS"
-id = ""  # 请替换为你的KV namespace ID
+id = "33e6e2138d62415bb688149c50ffda2a"
 
 # ============================================================================
 # 密钥配置（重要，请勿把真实密钥写在 [vars] 中）
