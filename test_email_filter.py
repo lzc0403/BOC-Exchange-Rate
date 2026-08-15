@@ -22,10 +22,35 @@ send_daily_emails.py 收件人规范化 / 示例域过滤 / 脱敏 / SMTP 超时
 import os
 import re
 import unittest
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
 # 被测模块顶层会创建 boc_email.log（FileHandler），接受该行为（运行目录可能多一个日志文件）。
 import send_daily_emails as sd
+
+
+@contextmanager
+def env_override(**overrides):
+    """安全地临时设置环境变量，退出时恢复原值。
+
+    替代 @patch.dict(os.environ, ...) —— 在 Windows 上 patch.dict 恢复
+    超长环境变量（如 ACC_PRODUCT_CONFIG_V3 ~500KB）时会触发 ValueError。
+    """
+    saved = {}
+    for key, val in overrides.items():
+        saved[key] = os.environ.get(key)
+        if val is None or val == "":
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = val
+    try:
+        yield
+    finally:
+        for key, old_val in saved.items():
+            if old_val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old_val
 
 
 def _raw_list(*emails):
@@ -160,17 +185,21 @@ class SendEmailFilterTest(unittest.TestCase):
 
 
 class SendEmailTimeoutTest(unittest.TestCase):
-    """SMTP 显式超时：连接创建时传入 timeout，且与配置不符时回退默认。"""
+    """SMTP 显式超时：连接创建时传入 timeout，且与配置不符时回退默认。
 
-    @patch.dict(os.environ, {
-        "SMTP_SERVER": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SENDER_EMAIL": "sender@example.com",
-        "SENDER_PASSWORD": "dummy-password",
-    })
+    使用 env_override 替代 @patch.dict(os.environ, ...)，因为 Windows 上
+    patch.dict 在恢复原始环境时，若某个环境变量值超过 32767 字符
+    （如 ACC_PRODUCT_CONFIG_V3 ~500KB），会触发 ValueError。
+    """
+
     def test_smtp_timeout_passed_to_connection(self):
         fake_server = MagicMock()
-        with patch("send_daily_emails.smtplib.SMTP", return_value=fake_server) as mock_smtp:
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+        ), patch("send_daily_emails.smtplib.SMTP", return_value=fake_server) as mock_smtp:
             result = sd.send_email("user@gmail.com", "<p>hi</p>", [])
 
         self.assertTrue(result)
@@ -178,29 +207,27 @@ class SendEmailTimeoutTest(unittest.TestCase):
         kwargs = mock_smtp.call_args[1]
         self.assertEqual(kwargs.get("timeout"), 30)  # 默认 30 秒
 
-    @patch.dict(os.environ, {
-        "SMTP_SERVER": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SENDER_EMAIL": "sender@example.com",
-        "SENDER_PASSWORD": "dummy-password",
-        "SMTP_TIMEOUT": "5",
-    })
     def test_smtp_timeout_from_env(self):
         fake_server = MagicMock()
-        with patch("send_daily_emails.smtplib.SMTP", return_value=fake_server) as mock_smtp:
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            SMTP_TIMEOUT="5",
+        ), patch("send_daily_emails.smtplib.SMTP", return_value=fake_server) as mock_smtp:
             sd.send_email("user@gmail.com", "<p>hi</p>", [])
             self.assertEqual(mock_smtp.call_args[1].get("timeout"), 5)
 
-    @patch.dict(os.environ, {
-        "SMTP_SERVER": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SENDER_EMAIL": "sender@example.com",
-        "SENDER_PASSWORD": "dummy-password",
-        "SMTP_TIMEOUT": "not-a-number",
-    })
     def test_smtp_timeout_invalid_falls_back(self):
         fake_server = MagicMock()
-        with patch("send_daily_emails.smtplib.SMTP", return_value=fake_server) as mock_smtp:
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            SMTP_TIMEOUT="not-a-number",
+        ), patch("send_daily_emails.smtplib.SMTP", return_value=fake_server) as mock_smtp:
             sd.send_email("user@gmail.com", "<p>hi</p>", [])
             self.assertEqual(mock_smtp.call_args[1].get("timeout"), 30)
 
@@ -214,43 +241,40 @@ class BuildUnsubscribeUrlTest(unittest.TestCase):
 
     def test_no_secret_falls_back(self):
         # 无 UNSUBSCRIBE_SECRET / SUBSCRIBER_API_KEY：返回 UNSUBSCRIBE_BASE_URL（未配置则 "#"），不抛异常
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_BASE_URL": self.BASE_URL,
-        }, clear=False):
-            # 显式清空两个密钥
-            with patch.dict(os.environ, {
-                "UNSUBSCRIBE_SECRET": "",
-                "SUBSCRIBER_API_KEY": "",
-            }):
-                url = sd.build_unsubscribe_url("Test@Example.com")
+        with env_override(
+            UNSUBSCRIBE_BASE_URL=self.BASE_URL,
+            UNSUBSCRIBE_SECRET="",
+            SUBSCRIBER_API_KEY="",
+        ):
+            url = sd.build_unsubscribe_url("Test@Example.com")
         self.assertEqual(url, self.BASE_URL)
         # 不含 token（未携带签名）
         self.assertNotIn("token=", url)
 
         # 连 UNSUBSCRIBE_BASE_URL 也未配置时回退 "#"
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": "",
-            "SUBSCRIBER_API_KEY": "",
-            "UNSUBSCRIBE_BASE_URL": "",
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET="",
+            SUBSCRIBER_API_KEY="",
+            UNSUBSCRIBE_BASE_URL="",
+        ):
             self.assertEqual(sd.build_unsubscribe_url("a@b.co"), "#")
 
     def test_short_secret_falls_back(self):
         # 密钥长度 < 16 视为未配置（与 Worker fail-closed 阈值一致）
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": "",
-            "SUBSCRIBER_API_KEY": "short",
-            "UNSUBSCRIBE_BASE_URL": self.BASE_URL,
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET="",
+            SUBSCRIBER_API_KEY="short",
+            UNSUBSCRIBE_BASE_URL=self.BASE_URL,
+        ):
             url = sd.build_unsubscribe_url("user@example.com")
         self.assertEqual(url, self.BASE_URL)
 
     def test_url_contains_email_and_token(self):
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": self.SECRET,
-            "SUBSCRIBER_API_KEY": "",
-            "UNSUBSCRIBE_BASE_URL": self.BASE_URL,
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET=self.SECRET,
+            SUBSCRIBER_API_KEY="",
+            UNSUBSCRIBE_BASE_URL=self.BASE_URL,
+        ):
             url = sd.build_unsubscribe_url("User@Example.COM")
 
         # email 已小写化并 URL 编码
@@ -265,11 +289,11 @@ class BuildUnsubscribeUrlTest(unittest.TestCase):
 
     def test_signature_segment_is_43_chars_base64url_no_padding(self):
         # HMAC-SHA256 摘要 32 字节 -> base64url 无 padding = ceil(32*4/3)=43 字符
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": self.SECRET,
-            "SUBSCRIBER_API_KEY": "",
-            "UNSUBSCRIBE_BASE_URL": self.BASE_URL,
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET=self.SECRET,
+            SUBSCRIBER_API_KEY="",
+            UNSUBSCRIBE_BASE_URL=self.BASE_URL,
+        ):
             url = sd.build_unsubscribe_url("user@example.com")
         token = url.split("token=")[1]
         sig = token.split(".")[1]
@@ -287,11 +311,11 @@ class BuildUnsubscribeUrlTest(unittest.TestCase):
         import json
         import time
 
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": self.SECRET,
-            "SUBSCRIBER_API_KEY": "",
-            "UNSUBSCRIBE_BASE_URL": self.BASE_URL,
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET=self.SECRET,
+            SUBSCRIBER_API_KEY="",
+            UNSUBSCRIBE_BASE_URL=self.BASE_URL,
+        ):
             url = sd.build_unsubscribe_url("user@example.com")
         token = url.split("token=")[1]
         p64, s64 = token.split(".")
@@ -314,11 +338,11 @@ class BuildUnsubscribeUrlTest(unittest.TestCase):
 
     def test_different_nonce_produces_different_tokens(self):
         # 同一邮箱、同一密钥，两次调用应因 nonce 不同而产生不同 token（防重放）
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": self.SECRET,
-            "SUBSCRIBER_API_KEY": "",
-            "UNSUBSCRIBE_BASE_URL": self.BASE_URL,
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET=self.SECRET,
+            SUBSCRIBER_API_KEY="",
+            UNSUBSCRIBE_BASE_URL=self.BASE_URL,
+        ):
             url1 = sd.build_unsubscribe_url("user@example.com")
             url2 = sd.build_unsubscribe_url("user@example.com")
         token1 = url1.split("token=")[1]
@@ -365,11 +389,11 @@ class BuildHtmlEmailTest(unittest.TestCase):
 
     def test_injects_per_recipient_token(self):
         # 每个收件人的专属退订链接应原样注入自身 token
-        with patch.dict(os.environ, {
-            "UNSUBSCRIBE_SECRET": BuildUnsubscribeUrlTest.SECRET,
-            "SUBSCRIBER_API_KEY": "",
-            "UNSUBSCRIBE_BASE_URL": BuildUnsubscribeUrlTest.BASE_URL,
-        }):
+        with env_override(
+            UNSUBSCRIBE_SECRET=BuildUnsubscribeUrlTest.SECRET,
+            SUBSCRIBER_API_KEY="",
+            UNSUBSCRIBE_BASE_URL=BuildUnsubscribeUrlTest.BASE_URL,
+        ):
             url = sd.build_unsubscribe_url("user@example.com")
             token = url.split("token=")[1]
         html_out = sd.build_html_email(self.DATA, url)

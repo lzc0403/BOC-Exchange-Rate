@@ -15,9 +15,34 @@ alert_notifier.py 单元测试。
 """
 import os
 import unittest
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
 import alert_notifier as an
+
+
+@contextmanager
+def env_override(**overrides):
+    """安全地临时设置环境变量，退出时恢复原值。
+
+    替代 @patch.dict(os.environ, ...) —— 在 Windows 上 patch.dict 恢复
+    超长环境变量（如 ACC_PRODUCT_CONFIG_V3 ~500KB）时会触发 ValueError。
+    """
+    saved = {}
+    for key, val in overrides.items():
+        saved[key] = os.environ.get(key)
+        if val is None or val == "":
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = val
+    try:
+        yield
+    finally:
+        for key, old_val in saved.items():
+            if old_val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old_val
 
 
 class SendAlertMissingConfigTest(unittest.TestCase):
@@ -25,49 +50,49 @@ class SendAlertMissingConfigTest(unittest.TestCase):
 
     def test_send_alert_missing_config(self):
         """ALERT_EMAIL 未配置时返回 False，不抛异常。"""
-        with patch.dict(os.environ, {
-            "SMTP_SERVER": "smtp.example.com",
-            "SMTP_PORT": "587",
-            "SENDER_EMAIL": "sender@example.com",
-            "SENDER_PASSWORD": "dummy-password",
-            "ALERT_EMAIL": "",
-        }, clear=False):
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="",
+        ):
             result = an.send_alert("[告警] 测试", "测试告警正文")
         self.assertFalse(result)
 
     def test_send_alert_missing_smtp(self):
         """SMTP_SERVER 未配置时返回 False，不抛异常。"""
-        with patch.dict(os.environ, {
-            "SMTP_SERVER": "",
-            "SMTP_PORT": "587",
-            "SENDER_EMAIL": "sender@example.com",
-            "SENDER_PASSWORD": "dummy-password",
-            "ALERT_EMAIL": "alert@example.com",
-        }, clear=False):
+        with env_override(
+            SMTP_SERVER="",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="alert@example.com",
+        ):
             result = an.send_alert("[告警] 测试", "测试告警正文")
         self.assertFalse(result)
 
     def test_send_alert_missing_sender(self):
         """SENDER_EMAIL 未配置时返回 False。"""
-        with patch.dict(os.environ, {
-            "SMTP_SERVER": "smtp.example.com",
-            "SMTP_PORT": "587",
-            "SENDER_EMAIL": "",
-            "SENDER_PASSWORD": "dummy-password",
-            "ALERT_EMAIL": "alert@example.com",
-        }, clear=False):
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="alert@example.com",
+        ):
             result = an.send_alert("[告警] 测试", "测试告警正文")
         self.assertFalse(result)
 
     def test_send_alert_invalid_alert_email_format(self):
         """ALERT_EMAIL 格式非法时返回 False。"""
-        with patch.dict(os.environ, {
-            "SMTP_SERVER": "smtp.example.com",
-            "SMTP_PORT": "587",
-            "SENDER_EMAIL": "sender@example.com",
-            "SENDER_PASSWORD": "dummy-password",
-            "ALERT_EMAIL": "not-an-email",
-        }, clear=False):
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="not-an-email",
+        ):
             result = an.send_alert("[告警] 测试", "测试告警正文")
         self.assertFalse(result)
 
@@ -87,17 +112,16 @@ class SendAlertMockTest(unittest.TestCase):
         fake.__exit__.return_value = False
         return fake
 
-    @patch.dict(os.environ, {
-        "SMTP_SERVER": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SENDER_EMAIL": "sender@example.com",
-        "SENDER_PASSWORD": "dummy-password",
-        "ALERT_EMAIL": "alert@example.com",
-    })
     def test_send_alert_success_mock(self):
         """mock smtplib.SMTP，验证 send_alert 调用了 send_message，返回 True。"""
         fake_server = self._make_fake_server()
-        with patch("alert_notifier.smtplib.SMTP", return_value=fake_server) as mock_smtp:
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="alert@example.com",
+        ), patch("alert_notifier.smtplib.SMTP", return_value=fake_server) as mock_smtp:
             result = an.send_alert("[告警] 测试", "测试告警正文")
 
         self.assertTrue(result)
@@ -118,34 +142,32 @@ class SendAlertMockTest(unittest.TestCase):
         self.assertEqual(sent_msg["To"], "alert@example.com")
         self.assertIn("告警", sent_msg["Subject"])
 
-    @patch.dict(os.environ, {
-        "SMTP_SERVER": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SENDER_EMAIL": "sender@example.com",
-        "SENDER_PASSWORD": "dummy-password",
-        "ALERT_EMAIL": "alert@example.com",
-    })
     def test_send_alert_failure_mock(self):
         """mock smtplib.SMTP 抛异常，验证返回 False 且异常不传播。"""
-        with patch("alert_notifier.smtplib.SMTP",
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="alert@example.com",
+        ), patch("alert_notifier.smtplib.SMTP",
                    side_effect=Exception("SMTP connection refused")) as mock_smtp:
             result = an.send_alert("[告警] 测试", "测试告警正文")
 
         self.assertFalse(result)
         self.assertTrue(mock_smtp.called)
 
-    @patch.dict(os.environ, {
-        "SMTP_SERVER": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SENDER_EMAIL": "sender@example.com",
-        "SENDER_PASSWORD": "dummy-password",
-        "ALERT_EMAIL": "alert@example.com",
-    })
     def test_send_alert_login_failure_returns_false(self):
         """SMTP login 抛异常时返回 False，不传播。"""
         fake_server = self._make_fake_server()
         fake_server.login.side_effect = Exception("Authentication failed")
-        with patch("alert_notifier.smtplib.SMTP", return_value=fake_server):
+        with env_override(
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+            ALERT_EMAIL="alert@example.com",
+        ), patch("alert_notifier.smtplib.SMTP", return_value=fake_server):
             result = an.send_alert("[告警] 测试", "测试告警正文")
         self.assertFalse(result)
 
@@ -227,18 +249,22 @@ class CheckDataIntegrityTest(unittest.TestCase):
         spec.loader.exec_module(cls.pw)
 
     def setUp(self):
-        """清理环境变量，避免干扰 send_alert 的配置检查。"""
-        self._env_patcher = patch.dict(os.environ, {
-            "ALERT_EMAIL": "alert@example.com",
-            "SMTP_SERVER": "smtp.example.com",
-            "SMTP_PORT": "587",
-            "SENDER_EMAIL": "sender@example.com",
-            "SENDER_PASSWORD": "dummy-password",
-        }, clear=False)
-        self._env_patcher.start()
+        """设置环境变量，避免干扰 send_alert 的配置检查。
+
+        使用 env_override 替代 patch.dict(os.environ, ...)，
+        因为 Windows 上 patch.dict 恢复超长环境变量时触发 ValueError。
+        """
+        self._env_ctx = env_override(
+            ALERT_EMAIL="alert@example.com",
+            SMTP_SERVER="smtp.example.com",
+            SMTP_PORT="587",
+            SENDER_EMAIL="sender@example.com",
+            SENDER_PASSWORD="dummy-password",
+        )
+        self._env_ctx.__enter__()
 
     def tearDown(self):
-        self._env_patcher.stop()
+        self._env_ctx.__exit__(None, None, None)
 
     def test_missing_today_calls_send_alert(self):
         """load_done 返回不含今日日期的集合 → _check_data_integrity 调用 send_alert。"""
