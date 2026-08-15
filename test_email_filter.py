@@ -38,30 +38,30 @@ class NormalizeRecipientListTest(unittest.TestCase):
     def test_example_com_filtered(self):
         recipients, stats = sd.normalize_recipient_list(_raw_list("test@example.com"))
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["skipped_example"], 1)
-        self.assertEqual(stats["valid"], 0)
+        self.assertEqual(stats.skipped_example, 1)
+        self.assertEqual(stats.valid, 0)
 
     def test_example_org_and_net_filtered(self):
         recipients, stats = sd.normalize_recipient_list(
             _raw_list("foo@example.org", "bar@example.net"))
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["skipped_example"], 2)
+        self.assertEqual(stats.skipped_example, 2)
 
     def test_normal_email_kept(self):
         recipients, stats = sd.normalize_recipient_list(_raw_list("user@gmail.com"))
         self.assertEqual(recipients, ["user@gmail.com"])
-        self.assertEqual(stats["valid"], 1)
-        self.assertEqual(stats["skipped_example"], 0)
+        self.assertEqual(stats.valid, 1)
+        self.assertEqual(stats.skipped_example, 0)
 
     def test_uppercase_example_filtered(self):
         recipients, stats = sd.normalize_recipient_list(_raw_list("TEST@EXAMPLE.COM"))
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["skipped_example"], 1)
+        self.assertEqual(stats.skipped_example, 1)
 
     def test_whitespace_trimmed_then_judged(self):
         recipients, stats = sd.normalize_recipient_list(_raw_list("  test@example.com  "))
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["skipped_example"], 1)
+        self.assertEqual(stats.skipped_example, 1)
         # 空格包裹的正常邮箱 trim 后保留
         recipients2, _ = sd.normalize_recipient_list(_raw_list("  user@gmail.com  "))
         self.assertEqual(recipients2, ["user@gmail.com"])
@@ -69,33 +69,49 @@ class NormalizeRecipientListTest(unittest.TestCase):
     def test_invalid_format_skipped(self):
         recipients, stats = sd.normalize_recipient_list(_raw_list("not-an-email"))
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["skipped_invalid"], 1)
+        self.assertEqual(stats.skipped_invalid, 1)
 
     def test_duplicate_removed(self):
         recipients, stats = sd.normalize_recipient_list(
             _raw_list("user@gmail.com", "user@gmail.com", "a@b.co"))
         self.assertEqual(recipients, ["user@gmail.com", "a@b.co"])
         self.assertEqual(len(recipients), 2)
-        self.assertEqual(stats["valid"], 2)
+        self.assertEqual(stats.valid, 2)
+        self.assertEqual(stats.skipped_duplicate, 1)
+
+    def test_duplicate_counted_in_stats(self):
+        """Fix 4 回归：重复邮箱计入 skipped_duplicate，统计恒自洽。"""
+        recipients, stats = sd.normalize_recipient_list(
+            _raw_list("dup@gmail.com", "dup@gmail.com", "dup@gmail.com", "ok@b.co"))
+        self.assertEqual(recipients, ["dup@gmail.com", "ok@b.co"])
+        self.assertEqual(stats.valid, 2)
+        self.assertEqual(stats.skipped_duplicate, 2)
+        # 不变量：total_raw == valid + skipped_invalid + skipped_example + skipped_duplicate
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate,
+        )
 
     def test_env_and_subscriber_merged(self):
         recipients, stats = sd.normalize_recipient_list(
             _raw_list("env@test.com", "sub@test.com", "env@test.com", "test@example.com"))
         self.assertEqual(recipients, ["env@test.com", "sub@test.com"])
-        self.assertEqual(stats["skipped_example"], 1)
+        self.assertEqual(stats.skipped_example, 1)
+        self.assertEqual(stats.skipped_duplicate, 1)
 
     def test_all_filtered_returns_empty(self):
         recipients, stats = sd.normalize_recipient_list(
             _raw_list("test@example.com", "foo@example.net", ""))
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["skipped_example"], 2)
-        self.assertEqual(stats["skipped_invalid"], 1)
+        self.assertEqual(stats.skipped_example, 2)
+        self.assertEqual(stats.skipped_invalid, 1)
         # 不抛异常即通过
 
     def test_empty_input(self):
         recipients, stats = sd.normalize_recipient_list([])
         self.assertEqual(recipients, [])
-        self.assertEqual(stats["total_raw"], 0)
+        self.assertEqual(stats.total_raw, 0)
+        self.assertEqual(stats.skipped_duplicate, 0)
 
 
 class MaskEmailTest(unittest.TestCase):
@@ -131,7 +147,7 @@ class SendEmailFilterTest(unittest.TestCase):
         subscriber_list = ["test@example.com", "sub@real.com", "TEST@EXAMPLE.ORG"]
         raw = env_recipients + subscriber_list
         recipients, stats = sd.normalize_recipient_list(raw)
-        self.assertEqual(stats["skipped_example"], 2)
+        self.assertEqual(stats.skipped_example, 2)
 
         with patch("send_daily_emails.send_email", return_value=True) as mock_send:
             for email in recipients:
@@ -367,6 +383,152 @@ class BuildHtmlEmailTest(unittest.TestCase):
         except UnboundLocalError as e:
             self.fail(f"build_html_email 不应抛 UnboundLocalError: {e}")
         self.assertTrue(html_out)
+
+
+# ---- Fix 3 回归：RecipientStats 是 NamedTuple 且属性可访问 ----
+
+
+class RecipientStatsNamedTupleTest(unittest.TestCase):
+    """Fix 3 回归：normalize_recipient_list 返回 RecipientStats NamedTuple。
+
+    确保返回类型从 dict 改为 NamedTuple 后：
+    - RecipientStats 是 NamedTuple 子类
+    - .valid / .skipped_invalid / .skipped_example / .skipped_duplicate / .total_raw 属性可访问
+    - 同时支持 to_dict() 字典式访问（兼容旧调用方）
+    """
+
+    def test_recipient_stats_is_namedtuple(self):
+        """RecipientStats 应为 NamedTuple 子类。"""
+        from collections import namedtuple
+        # NamedTuple 子类同时也是 tuple 子类
+        self.assertTrue(issubclass(sd.RecipientStats, tuple))
+        # hasattr __fields__ 是 NamedTuple 的特征
+        self.assertTrue(hasattr(sd.RecipientStats, "_fields"))
+        expected_fields = (
+            "total_raw", "skipped_invalid", "skipped_example",
+            "skipped_duplicate", "valid",
+        )
+        self.assertEqual(sd.RecipientStats._fields, expected_fields)
+
+    def test_all_attributes_accessible(self):
+        """所有统计字段通过点号访问，无 AttributeError。"""
+        recipients, stats = sd.normalize_recipient_list(
+            _raw_list("user@gmail.com", "bad", "test@example.com", "dup@gmail.com", "dup@gmail.com"))
+        # 每个属性都能访问且为 int
+        self.assertIsInstance(stats.total_raw, int)
+        self.assertIsInstance(stats.skipped_invalid, int)
+        self.assertIsInstance(stats.skipped_example, int)
+        self.assertIsInstance(stats.skipped_duplicate, int)
+        self.assertIsInstance(stats.valid, int)
+
+    def test_to_dict_returns_correct_keys(self):
+        """to_dict() 返回含所有字段的字典（兼容旧调用方）。"""
+        recipients, stats = sd.normalize_recipient_list(
+            _raw_list("user@gmail.com", "test@example.com"))
+        d = stats.to_dict()
+        self.assertIsInstance(d, dict)
+        for key in ("total_raw", "skipped_invalid", "skipped_example",
+                    "skipped_duplicate", "valid"):
+            self.assertIn(key, d, f"to_dict() 缺少键 {key}")
+
+    def test_namedtuple_immutable(self):
+        """NamedTuple 不可变：修改属性应抛 AttributeError（防止运行时篡改统计）。"""
+        recipients, stats = sd.normalize_recipient_list(
+            _raw_list("user@gmail.com"))
+        with self.assertRaises(AttributeError):
+            stats.valid = 999
+
+
+# ---- Fix 4 回归：skipped_duplicate 计数 + 不变量恒自洽 ----
+
+
+class SkippedDuplicateInvariantTest(unittest.TestCase):
+    """Fix 4 回归：去重时计入 skipped_duplicate，且统计不变量恒成立。
+
+    不变量：total_raw == valid + skipped_invalid + skipped_example + skipped_duplicate
+    """
+
+    def test_single_duplicate_counted(self):
+        """1 个重复邮箱 → skipped_duplicate == 1，不变量成立。"""
+        recipients, stats = sd.normalize_recipient_list(
+            _raw_list("a@gmail.com", "a@gmail.com"))
+        self.assertEqual(stats.skipped_duplicate, 1)
+        self.assertEqual(stats.valid, 1)
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
+
+    def test_multiple_duplicates_counted(self):
+        """3 个重复邮箱 → skipped_duplicate == 3（含首次出现之外的每次重复）。"""
+        recipients, stats = sd.normalize_recipient_list(
+            _raw_list("dup@gmail.com", "dup@gmail.com", "dup@gmail.com", "dup@gmail.com"))
+        self.assertEqual(recipients, ["dup@gmail.com"])
+        self.assertEqual(stats.valid, 1)
+        self.assertEqual(stats.skipped_duplicate, 3)
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
+
+    def test_invariant_with_mixed_categories(self):
+        """混合场景（合法+非法+示例域+重复）不变量成立。"""
+        raw = [
+            "ok1@gmail.com",      # valid
+            "ok2@gmail.com",      # valid
+            "not-an-email",       # skipped_invalid
+            "",                   # skipped_invalid
+            "test@example.com",   # skipped_example
+            "ok1@gmail.com",      # skipped_duplicate
+            "ok1@gmail.com",      # skipped_duplicate
+            "ok2@gmail.com",      # skipped_duplicate
+        ]
+        recipients, stats = sd.normalize_recipient_list(_raw_list(*raw))
+        self.assertEqual(stats.valid, 2)
+        self.assertEqual(stats.skipped_invalid, 2)
+        self.assertEqual(stats.skipped_example, 1)
+        self.assertEqual(stats.skipped_duplicate, 3)
+        self.assertEqual(stats.total_raw, len(raw))
+        # 核心不变量
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
+
+    def test_invariant_empty_input(self):
+        """空输入：不变量成立（0 == 0+0+0+0）。"""
+        recipients, stats = sd.normalize_recipient_list([])
+        self.assertEqual(stats.total_raw, 0)
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
+
+    def test_invariant_all_valid_no_duplicates(self):
+        """全部合法无重复：不变量成立。"""
+        raw = ["a@gmail.com", "b@gmail.com", "c@gmail.com"]
+        recipients, stats = sd.normalize_recipient_list(_raw_list(*raw))
+        self.assertEqual(stats.valid, 3)
+        self.assertEqual(stats.skipped_duplicate, 0)
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
+
+    def test_invariant_all_duplicates(self):
+        """全部重复（除第一个）：不变量成立。"""
+        raw = ["x@gmail.com"] * 10
+        recipients, stats = sd.normalize_recipient_list(_raw_list(*raw))
+        self.assertEqual(stats.valid, 1)
+        self.assertEqual(stats.skipped_duplicate, 9)
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
+
+    def test_invariant_all_filtered_no_valid(self):
+        """全部被过滤（无 valid）：不变量成立。"""
+        raw = ["test@example.com", "bad", "", "foo@example.org"]
+        recipients, stats = sd.normalize_recipient_list(_raw_list(*raw))
+        self.assertEqual(recipients, [])
+        self.assertEqual(stats.valid, 0)
+        self.assertEqual(
+            stats.total_raw,
+            stats.valid + stats.skipped_invalid + stats.skipped_example + stats.skipped_duplicate)
 
 
 if __name__ == "__main__":

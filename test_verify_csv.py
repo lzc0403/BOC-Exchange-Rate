@@ -107,7 +107,8 @@ class TestVerifyCsv(unittest.TestCase):
             rows[0][5] = "-87.01"
             p = _write(td, "neg.csv", rows)
             errs = vc.validate_csv(p)
-            self.assertTrue(any("负数" in e for e in errs))
+            # 负数现在被 _PRICE_RE 正则预校验拒绝（报"非数值"），或被 val < 0 检查拒绝（报"负数"）
+            self.assertTrue(any("负数" in e or "非数值" in e for e in errs))
 
     def test_price_nan_inf_fail(self):
         """QA 复测缺陷2 回归：nan/inf（含大小写、正负）必须判 fail，退出码非 0。"""
@@ -147,6 +148,59 @@ class TestVerifyCsv(unittest.TestCase):
             bad.write_text("货币名称,现汇买入价\n美元,673.7\n", encoding="utf-8")
             rc2 = vc.main(["--csv", str(bad)])
             self.assertNotEqual(rc2, 0)
+
+
+# ---- Fix 2 回归：_parse_price 与写入端口径对齐（拒绝科学计数法） ----
+
+
+class TestParsePriceAlignment(unittest.TestCase):
+    """Fix 2 回归：verify_csv._parse_price 使用 _PRICE_RE 正则预校验再 float()。
+
+    确保校验端口径与写入端（boc_scraper_v6.1.py 的 _PRICE_RE）完全一致：
+    仅接受 ^\\d+(\\.\\d+)?$ 格式，拒绝科学计数法、nan、inf 等。
+    """
+
+    def test_scientific_notation_rejected(self):
+        """科学计数法（如 1e5）应被拒绝，返回 None。"""
+        self.assertIsNone(vc._parse_price("1e5"))
+        self.assertIsNone(vc._parse_price("1E5"))
+        self.assertIsNone(vc._parse_price("1.5e3"))
+        self.assertIsNone(vc._parse_price("6.73e2"))
+
+    def test_normal_decimal_accepted(self):
+        """常规小数/整数应正常解析为 float。"""
+        self.assertEqual(vc._parse_price("673.7"), 673.7)
+        self.assertEqual(vc._parse_price("673"), 673.0)
+        self.assertEqual(vc._parse_price("0.01"), 0.01)
+        self.assertEqual(vc._parse_price("691.72"), 691.72)
+
+    def test_empty_returns_none(self):
+        """空字符串返回 None。"""
+        self.assertIsNone(vc._parse_price(""))
+        self.assertIsNone(vc._parse_price("   "))
+
+    def test_negative_rejected(self):
+        """负数被 _PRICE_RE 拒绝（不以 ^\\d 开头）。"""
+        self.assertIsNone(vc._parse_price("-5"))
+        self.assertIsNone(vc._parse_price("-87.01"))
+
+    def test_nan_inf_rejected(self):
+        """nan/inf 被 _PRICE_RE 拒绝（不以 ^\\d 开头）。"""
+        self.assertIsNone(vc._parse_price("nan"))
+        self.assertIsNone(vc._parse_price("NaN"))
+        self.assertIsNone(vc._parse_price("inf"))
+        self.assertIsNone(vc._parse_price("-inf"))
+        self.assertIsNone(vc._parse_price("Infinity"))
+
+    def test_scientific_notation_fails_in_validate_csv(self):
+        """集成验证：CSV 中含科学计数法价格 → validate_csv 报"非数值"。"""
+        with tempfile.TemporaryDirectory() as td:
+            rows = _valid_rows()
+            rows[0][1] = "1e5"
+            p = _write(td, "sci.csv", rows)
+            errs = vc.validate_csv(p)
+            self.assertTrue(any("非数值" in e for e in errs),
+                            "科学计数法价格应被判为非数值")
 
 
 if __name__ == "__main__":

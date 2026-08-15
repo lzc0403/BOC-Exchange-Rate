@@ -24,6 +24,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 
@@ -115,6 +116,22 @@ EXAMPLE_DOMAINS = {"example.com", "example.org", "example.net"}
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
+class RecipientStats(NamedTuple):
+    """收件人规范化统计信息（NamedTuple，防键名拼写错误静默失败）。
+
+    不变量：total_raw == valid + skipped_invalid + skipped_example + skipped_duplicate
+    """
+    total_raw: int
+    skipped_invalid: int
+    skipped_example: int
+    skipped_duplicate: int
+    valid: int
+
+    def to_dict(self) -> dict:
+        """转换为字典（兼容旧调用方字典式访问与日志 % 格式化）。"""
+        return self._asdict()
+
+
 def is_disposable_example_domain(email: str) -> bool:
     """判断邮箱是否属于示例/测试域名（example.com / example.org / example.net）。
 
@@ -151,34 +168,47 @@ def mask_email(email: str) -> str:
     return f"{masked_local}@{masked_head}"
 
 
-def normalize_recipient_list(raw_emails: list[str]) -> tuple[list[str], dict]:
+def normalize_recipient_list(raw_emails: list[str]) -> tuple[list[str], RecipientStats]:
     """规范化收件人列表：trim、小写、过滤空串/非法格式/示例域名、按序去重。
 
-    返回 (可用收件人列表, 统计信息)。统计信息至少包含:
-      total_raw        原始输入数量
-      skipped_invalid  格式非法或为空的地址数
-      skipped_example  命中示例域名的地址数
-      valid            规范化后可用的地址数
+    返回 (可用收件人列表, 统计信息)。统计信息为 RecipientStats NamedTuple，
+    支持点号访问（stats.skipped_invalid）与字典式访问（stats.to_dict()["skipped_invalid"]）。
+    统计不变量：total_raw == valid + skipped_invalid + skipped_example + skipped_duplicate
     """
-    stats = {"total_raw": len(raw_emails), "skipped_invalid": 0, "skipped_example": 0, "valid": 0}
+    stats = RecipientStats(
+        total_raw=len(raw_emails),
+        skipped_invalid=0,
+        skipped_example=0,
+        skipped_duplicate=0,
+        valid=0,
+    )
     seen: set[str] = set()
     recipients: list[str] = []
+    s_invalid = 0
+    s_example = 0
+    s_duplicate = 0
     for raw in raw_emails:
         email = raw.strip().lower()
         if not email:
-            stats["skipped_invalid"] += 1
+            s_invalid += 1
             continue
         if not EMAIL_RE.match(email):
-            stats["skipped_invalid"] += 1
+            s_invalid += 1
             continue
         if is_disposable_example_domain(email):
-            stats["skipped_example"] += 1
+            s_example += 1
             continue
         if email in seen:
+            s_duplicate += 1
             continue
         seen.add(email)
         recipients.append(email)
-    stats["valid"] = len(recipients)
+    stats = stats._replace(
+        skipped_invalid=s_invalid,
+        skipped_example=s_example,
+        skipped_duplicate=s_duplicate,
+        valid=len(recipients),
+    )
     return recipients, stats
 
 
@@ -533,17 +563,17 @@ def main():
     raw_recipients.extend(get_subscriber_list())
 
     recipients, stats = normalize_recipient_list(raw_recipients)
-    if stats["skipped_invalid"] or stats["skipped_example"]:
+    if stats.skipped_invalid or stats.skipped_example or stats.skipped_duplicate:
         log.info(
-            "收件人过滤统计: 原始 %(total_raw)d，合法 %(valid)d，"
-            "跳过示例域名 %(skipped_example)d，跳过非法/空 %(skipped_invalid)d" % stats
+            "收件人过滤统计: 原始 %d，合法 %d，"
+            "跳过示例域名 %d，跳过非法/空 %d，跳过重复 %d" % stats.to_dict()
         )
 
     if not recipients:
         log.warning("没有有效收件人，跳过邮件发送")
         return
 
-    log.info(f"共 {len(recipients)} 个收件人（跳过 {stats['skipped_example']} 个示例域名）")
+    log.info(f"共 {len(recipients)} 个收件人（跳过 {stats.skipped_example} 个示例域名）")
 
     # 发送邮件：HTML 骨架（币种卡片）不变，但退订链接必须按收件人逐一生成，
     # 因此在循环内为每个收件人构建专属 HTML 再发送。
@@ -560,7 +590,7 @@ def main():
 
     log.info(
         f"发送完成: 成功 {success}, 失败 {fail}, 总计 {len(recipients)}, "
-        f"跳过 {stats['skipped_example'] + stats['skipped_invalid']}"
+        f"跳过 {stats.skipped_example + stats.skipped_invalid + stats.skipped_duplicate}"
     )
 
 

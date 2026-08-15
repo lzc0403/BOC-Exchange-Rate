@@ -350,21 +350,10 @@ def select_daily_record(rows: list[dict], d: date) -> dict | None:
 # ============================================================
 #  CSV 读写 / 去重（契约：列顺序、utf-8-sig、按查询日期去重）
 # ============================================================
-# CSV 列顺序契约（写入/校验/读取共用；勿改，前端与邮箱附件依赖此顺序）
-CSV_COLUMNS = ["货币名称", "现汇买入价", "现钞买入价", "现汇卖出价",
-               "现钞卖出价", "中行折算价", "发布时间", "查询日期"]
-# 必填价格字段：查询日 + 五个价格字段，写入前校验（fail-closed，不写坏数据）
-REQUIRED_FIELDS = ("现汇买入价", "现钞买入价", "现汇卖出价", "现钞卖出价", "中行折算价")
-# 价格字段合法格式：非负数字（可含 1 位以上小数），如 688.8 / 691.72 / 673.0
-_PRICE_RE = re.compile(r"^\d+(\.\d+)?$")
-
-
-class CsvCorruptError(Exception):
-    """CSV 文件损坏（无法解析/列缺失/日期列不可用）时的哨兵异常。
-
-    由 load_done 在损坏场景抛出，调用方（scrape_today 等）据此中止或告警，
-    绝不允许静默当作“无任何历史数据”而触发灾难性重复补全。
-    """
+# CSV 列顺序契约、必填价格字段、价格正则、CsvCorruptError 统一抽到 csv_contract.py，
+# 避免与 verify_csv.py 双份复制漂移导致前端/邮箱附件/CI 门禁静默不一致。
+# 这里以别名 REQUIRED_FIELDS 引入 PRICE_FIELDS，保持调用方代码不变。
+from csv_contract import CSV_COLUMNS, PRICE_FIELDS as REQUIRED_FIELDS, _PRICE_RE, CsvCorruptError
 
 
 def _is_iso_query_date(s: str) -> bool:

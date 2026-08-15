@@ -26,13 +26,9 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-# CSV 列顺序契约（与 boc_scraper_v6.1.CSV_COLUMNS 保持一致；勿改）
-CSV_COLUMNS = [
-    "货币名称", "现汇买入价", "现钞买入价", "现汇卖出价",
-    "现钞卖出价", "中行折算价", "发布时间", "查询日期",
-]
-# 必填价格字段（缺失/非数值/负数均视为失败）
-PRICE_FIELDS = ("现汇买入价", "现钞买入价", "现汇卖出价", "现钞卖出价", "中行折算价")
+# CSV 列顺序契约、必填价格字段、价格正则统一从 csv_contract 共享模块引入，
+# 避免与 boc_scraper_v6.1.py 双份复制漂移。
+from csv_contract import CSV_COLUMNS, PRICE_FIELDS, _PRICE_RE
 # 缺省校验文件（CI 在仓库根目录运行；可被 --csv 覆盖）
 DEFAULT_CSV_PATHS = ["boc_usd_cny.csv", "boc_hkd_cny.csv"]
 # 容忍最新日期超出系统日期的最多天数（时区差容忍 1 天）
@@ -56,14 +52,17 @@ def _is_iso_date(s: str) -> bool:
 
 
 def _parse_price(s: str) -> float | None:
-    """解析价格字段：空/非法/非有限数(nan/inf) 返回 None；合法返回数值。"""
+    """解析价格字段：空/非法/非有限数(nan/inf) 返回 None；合法返回数值。
+
+    使用与写入端 _PRICE_RE 一致的正则预校验，确保两端口径对齐：
+    仅接受 ^\\d+(\\.\\d+)?$ 格式（拒绝科学计数法如 1e5、nan、inf 等）。
+    """
     sv = s.strip()
     if not sv:
         return None
-    try:
-        val = float(sv)
-    except ValueError:
+    if not _PRICE_RE.match(sv):
         return None
+    val = float(sv)
     # 纵深防御：float() 会接受 "nan"/"inf"，价格必须为有限正数 → 拒绝
     if not math.isfinite(val):
         return None

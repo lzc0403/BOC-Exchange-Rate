@@ -163,5 +163,82 @@ class TestLoadDone(unittest.TestCase):
                 boc.load_done(p)
 
 
+# ---- Fix 1 回归：csv_contract 共享模块一致性 ----
+import csv_contract as _cc
+
+
+class TestCsvContractConsistency(unittest.TestCase):
+    """Fix 1 回归：验证 csv_contract.py 的常量与 boc_scraper_v6.1.py / verify_csv.py 中的引用一致。
+
+    确保共享模块消除双份复制后，各消费端引用的是同一对象（或值相等），
+    防止未来有人在一处改了列顺序而另一处漏改导致静默不一致。
+    """
+
+    def test_csv_columns_same_object_as_boc(self):
+        """boc.CSV_COLUMNS 与 csv_contract.CSV_COLUMNS 是同一对象。"""
+        self.assertIs(boc.CSV_COLUMNS, _cc.CSV_COLUMNS)
+
+    def test_csv_columns_same_object_as_verify_csv(self):
+        """verify_csv.CSV_COLUMNS 与 csv_contract.CSV_COLUMNS 是同一对象。"""
+        import verify_csv as vc
+        self.assertIs(vc.CSV_COLUMNS, _cc.CSV_COLUMNS)
+
+    def test_price_fields_same_object_as_verify_csv(self):
+        """verify_csv.PRICE_FIELDS 与 csv_contract.PRICE_FIELDS 是同一对象。"""
+        import verify_csv as vc
+        self.assertIs(vc.PRICE_FIELDS, _cc.PRICE_FIELDS)
+
+    def test_price_fields_value_equal_in_boc(self):
+        """boc 以 REQUIRED_FIELDS 别名引入，值与 csv_contract.PRICE_FIELDS 相等。"""
+        self.assertEqual(boc.REQUIRED_FIELDS, _cc.PRICE_FIELDS)
+
+    def test_price_re_same_object_as_boc(self):
+        """boc._PRICE_RE 与 csv_contract._PRICE_RE 是同一对象。"""
+        self.assertIs(boc._PRICE_RE, _cc._PRICE_RE)
+
+    def test_price_re_same_object_as_verify_csv(self):
+        """verify_csv._PRICE_RE 与 csv_contract._PRICE_RE 是同一对象。"""
+        import verify_csv as vc
+        self.assertIs(vc._PRICE_RE, _cc._PRICE_RE)
+
+    def test_csv_corrupt_error_same_object_as_boc(self):
+        """boc.CsvCorruptError 与 csv_contract.CsvCorruptError 是同一类。"""
+        self.assertIs(boc.CsvCorruptError, _cc.CsvCorruptError)
+
+    def test_csv_corrupt_error_same_object_as_verify_csv(self):
+        """verify_csv 中的 CsvCorruptError（如有）与 csv_contract.CsvCorruptError 一致。
+
+        verify_csv.py 本身未直接引用 CsvCorruptError，但 boc_scraper 与 csv_contract
+        必须共享同一异常类，确保 except 子句能正确捕获。
+        """
+        self.assertIs(boc.CsvCorruptError, _cc.CsvCorruptError)
+
+    def test_csv_columns_immutable_sequence(self):
+        """CSV_COLUMNS 列顺序与契约文档一致（防意外增删列）。"""
+        expected = [
+            "货币名称", "现汇买入价", "现钞买入价", "现汇卖出价",
+            "现钞卖出价", "中行折算价", "发布时间", "查询日期",
+        ]
+        self.assertEqual(list(_cc.CSV_COLUMNS), expected)
+        self.assertEqual(list(boc.CSV_COLUMNS), expected)
+
+    def test_price_fields_covers_all_price_columns(self):
+        """PRICE_FIELDS 恰好覆盖 5 个价格列（不含货币名称/发布时间/查询日期）。"""
+        self.assertEqual(len(_cc.PRICE_FIELDS), 5)
+        for f in _cc.PRICE_FIELDS:
+            self.assertIn(f, _cc.CSV_COLUMNS)
+
+    def test_price_re_rejects_scientific_notation(self):
+        """_PRICE_RE 拒绝科学计数法（Fix 2 口径对齐的基础）。"""
+        self.assertIsNone(_cc._PRICE_RE.match("1e5"))
+        self.assertIsNone(_cc._PRICE_RE.match("1E5"))
+
+    def test_price_re_accepts_normal_decimal(self):
+        """_PRICE_RE 接受常规小数/整数。"""
+        self.assertIsNotNone(_cc._PRICE_RE.match("673.7"))
+        self.assertIsNotNone(_cc._PRICE_RE.match("673"))
+        self.assertIsNotNone(_cc._PRICE_RE.match("0.01"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
