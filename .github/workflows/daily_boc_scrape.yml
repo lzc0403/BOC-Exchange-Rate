@@ -47,6 +47,7 @@ jobs:
         echo "SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}" >> .env
         echo "SENDER_PASSWORD=${{ secrets.SENDER_PASSWORD }}" >> .env
         echo "RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }}" >> .env
+        echo "ALERT_EMAIL=${{ secrets.ALERT_EMAIL }}" >> .env
 
     - name: Run BOC scraper
       env:
@@ -54,6 +55,8 @@ jobs:
         SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
         SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
         DAILY_MODE: ${{ github.event.inputs.mode == 'daily' || github.event_name == 'schedule' }}
         # 打码平台 Key（CapSolver 主 / 可选 2Captcha 备）——仅 verify_and_backfill 兜底用
         CAPSOLVER_API_KEY: ${{ secrets.CAPSOLVER_API_KEY }}

@@ -381,6 +381,47 @@ def _parse_end_date():
     return date.today()
 
 
+def _check_data_integrity(end_date):
+    """校验今日数据是否成功写入所有币种。返回 (all_ok, missing_info)。
+
+    在补全流程结束后（或无缺失直接跳过补全时）统一调用，确保每次运行
+    都校验今日数据是否在位；缺失时通过 alert_notifier 发送告警邮件。
+    """
+    from alert_notifier import send_alert
+
+    missing_currencies = []
+    today_str = end_date.strftime(DATE_FMT)
+    for currency, output_file in CURRENCIES.items():
+        try:
+            done = load_done(output_file)
+            if today_str not in done:
+                missing_currencies.append((currency, output_file))
+        except Exception as e:
+            log.error(f"校验 {currency} 数据时异常: {e}")
+            missing_currencies.append((currency, output_file))
+
+    if missing_currencies:
+        details = "\n".join(
+            f"  - {c} ({f}): 今日数据缺失" for c, f in missing_currencies
+        )
+        subject = f"[告警] BOC抓取数据缺失 - {end_date.strftime('%Y-%m-%d')}"
+        body = (
+            f"中国银行外汇牌价抓取告警\n\n"
+            f"日期: {end_date.strftime('%Y-%m-%d')}\n"
+            f"缺失币种:\n{details}\n\n"
+            f"请检查 GitHub Actions 运行日志: "
+            f"https://github.com/{os.getenv('GITHUB_REPOSITORY', 'lzc0403/BOC-Exchange-Rate')}/actions\n\n"
+            f"此邮件为自动告警，仅在数据异常时发送。"
+        )
+        send_alert(subject, body)
+        log.error("数据完整性校验失败，缺失币种: %s",
+                  [c for c, _ in missing_currencies])
+        return False, missing_currencies
+
+    log.info("数据完整性校验通过：所有币种今日数据均在位")
+    return True, []
+
+
 def main():
     end_date = _parse_end_date()
     today = end_date
@@ -396,6 +437,7 @@ def main():
              f"港币 {len(missing_by_currency['港币'])} 天（共 {total_missing} 天）")
     if total_missing == 0:
         log.info("无缺失，无需补全")
+        _check_data_integrity(end_date)
         return
 
     log.info("=" * 60)
@@ -405,6 +447,8 @@ def main():
 
     done, total = acquire_and_backfill(missing_by_currency)
     log.info(f"== 总结：成功 {done}/{total} ==")
+
+    _check_data_integrity(end_date)
 
 
 if __name__ == "__main__":
