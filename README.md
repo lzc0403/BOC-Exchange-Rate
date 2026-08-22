@@ -59,6 +59,27 @@ pip install -r requirements.txt
 | `SENDER_PASSWORD` | SMTP authorization code |
 | `RECIPIENT_EMAIL` | Notification recipient |
 
+### Security — Secret Leakage Auto-Block (must read)
+
+To prevent credentials from leaking to the public repo, this project has **two layers** of automatic interception:
+
+1. **CI scan (`gitleaks`)** — runs on every push/PR to `master`/`main`. If any secret is detected in the **entire history or current changes**, the push is **blocked** (non-zero exit). This is authoritative — it cannot be bypassed by local commits.
+
+2. **Local pre-commit hook** — runs the instant you `git commit`. Catches secrets in the **staged files** before they ever reach history, giving you fast feedback.
+
+**One-time setup after cloning on a new machine** (the hook path is a local git config, not part of the repo):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+**Important rules:**
+- Never `git add -f .env` — force-adding bypasses `.gitignore`.
+- `.env` (real secrets) must stay ignored; only `.env.example` (placeholders) is committed.
+- If the hook blocks a commit with a **false positive** (e.g. a placeholder like `your_password`), it's a whitelist issue — fix the pattern in `.githooks/pre-commit`, don't bypass with `--no-verify`.
+
+> **Repo is public.** Any secret committed at any point is exposed to the world instantly. The two layers above are what prevent that from happening again.
+
 ### 3. Deploy
 
 Push to GitHub — Actions will automatically:
