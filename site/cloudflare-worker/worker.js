@@ -405,8 +405,23 @@ async function handleRequest(request) {
   const path = url.pathname;
 
   try {
-    // POST /subscribe - Add email（无鉴权，公开注册接口）
+    // POST /subscribe - Add email（安全修复：改为鉴权保护，须携带有效 X-API-Key）
+    // 2026-08-22：公开订阅入口被攻击者利用批量填塞垃圾地址触发群发，现关闭公开注册，
+    // 仅内部管理员持有 SUBSCRIBER_API_KEY 时可调用（退化为一受控管理接口）。
     if (request.method === "POST" && path === "/subscribe") {
+      const { apiKey } = resolveSecrets();
+      // fail-closed：密钥未配置或长度不足或请求头不匹配，一律拒绝，绝不放行
+      if (!apiKey || apiKey.length < MIN_SECRET_LENGTH) {
+        console.error(
+          "[/subscribe] SUBSCRIBER_API_KEY 未配置或长度不足，拒绝访问（fail-closed）"
+        );
+        return jsonResponse({ error: "Service unavailable" }, 503);
+      }
+      const reqApiKey = request.headers.get("X-API-Key");
+      if (!reqApiKey || !(await safeEqual(reqApiKey, apiKey))) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+
       const body = await request.json();
       const email = (body.email || "").trim().toLowerCase();
 

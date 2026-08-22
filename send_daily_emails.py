@@ -45,7 +45,17 @@ CURRENCIES = {
 
 
 def get_subscriber_list() -> list[str]:
-    """从 Cloudflare Worker API 获取订阅者邮箱列表"""
+    """从 Cloudflare Worker API 获取订阅者邮箱列表。
+
+    已停用公开订阅来源（安全紧急修复）：不再从公开 Worker /subscribers 接口批量拉取订阅者，
+    避免攻击者通过公开订阅表单批量填塞垃圾地址触发每日群发。收件人来源已收敛到 RECIPIENT_EMAIL 白名单。
+    本函数保留定义以兼容 import / 测试，但始终返回空列表。
+    """
+    # 安全修复：弃用公开订阅者来源，直接返回空列表，避免向被滥用的订阅地址群发。
+    log.info("get_subscriber_list 已停用（公开订阅来源），返回空列表")
+    return []
+
+    # ---- 以下为原实现，保留备查，不再执行 ----
     api_url = os.getenv("SUBSCRIBER_API_URL", "")
     api_key = os.getenv("SUBSCRIBER_API_KEY", "")
 
@@ -557,10 +567,9 @@ def main():
         log.warning("没有任何币种数据，跳过发送")
         return
 
-    # 收集所有收件人：环境变量 + Worker 订阅列表，统一规范化、过滤示例域、按序去重
-    raw_recipients: list[str] = []
-    raw_recipients.extend(get_recipient_from_env())
-    raw_recipients.extend(get_subscriber_list())
+    # 安全修复：收件人来源收敛为受限白名单 —— 仅从 RECIPIENT_EMAIL 环境变量读取，
+    # 不再从公开 Worker /subscribers 接口批量拉取订阅者（避免向被滥用的订阅地址群发）。
+    raw_recipients: list[str] = get_recipient_from_env()
 
     recipients, stats = normalize_recipient_list(raw_recipients)
     if stats.skipped_invalid or stats.skipped_example or stats.skipped_duplicate:

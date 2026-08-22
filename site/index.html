@@ -418,22 +418,7 @@ footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var
     </div>
   </section>
 
-  <!-- Subscription -->
-  <section class="section animate">
-    <div class="sub-card">
-      <h3>订阅每日汇率推送</h3>
-      <p class="desc">每日抓取完成后，自动发送最新汇率数据到您的邮箱，不再错过任何汇率波动。</p>
-      <form class="sub-form" id="subscribeForm">
-        <input type="email" class="sub-input" id="subscribeEmail" placeholder="输入邮箱地址" required>
-        <button type="submit" class="sub-btn" id="subscribeBtn">立即订阅</button>
-      </form>
-      <div class="sub-msg" id="subscribeMessage"></div>
-      <p class="sub-privacy">
-        无需担心垃圾邮件，可随时 <a href="#" id="unsubscribeLink">退订</a>。
-        数据仅供推送使用。
-      </p>
-    </div>
-  </section>
+  <!-- Subscription（2026-08-22 安全修复：已移除公开订阅入口，防止攻击者批量填塞垃圾地址触发群发） -->
 
 </main>
 
@@ -644,41 +629,7 @@ document.getElementById('endDate').addEventListener('keydown', e => { if (e.key 
 
 document.addEventListener('DOMContentLoaded', loadData);
 
-// Subscription
-const API_URL = 'https://boc-subscription-api.lg111481.workers.dev';
-document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('subscribeEmail').value.trim().toLowerCase();
-  const msg = document.getElementById('subscribeMessage');
-  const btn = document.getElementById('subscribeBtn');
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    msg.className = 'sub-msg error'; msg.textContent = '请输入有效的邮箱地址'; return;
-  }
-  btn.disabled = true; btn.textContent = '订阅中...';
-  msg.className = 'sub-msg';
-  try {
-    const r = await fetch(API_URL + '/subscribe', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }), signal: AbortSignal.timeout(10000)
-    });
-    const d = await r.json();
-    msg.className = 'sub-msg ' + (d.success ? 'success' : 'error');
-    msg.textContent = d.success ? '✅ ' + d.message : (d.error || '订阅失败');
-    if (d.success) document.getElementById('subscribeEmail').value = '';
-  } catch(err) {
-    msg.className = 'sub-msg error';
-    msg.textContent = err.name === 'TimeoutError' ? '请求超时，请检查网络' : '网络错误，请稍后重试';
-  } finally {
-    btn.disabled = false; btn.textContent = '立即订阅';
-  }
-});
-// 退订：不再提供"仅凭邮箱即可退订"的入口（无签名退订链接可被越权利用）。
-// 真正的带签名退订链接由 send_daily_emails.py 在订阅邮件中生成并发送给用户，
-// 本站仅展示提示文案，指引用户使用邮件内的退订链接。
-document.getElementById('unsubscribeLink').addEventListener('click', (e) => {
-  e.preventDefault();
-  alert('请使用您收到的订阅邮件中的退订链接完成退订。');
-});
+// 订阅功能（2026-08-22 安全修复：公开订阅入口已关闭，删除订阅 JS 逻辑）
 </script>
 </body>
 </html>

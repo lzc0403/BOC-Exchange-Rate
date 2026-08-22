@@ -30,6 +30,9 @@ venv.bak/
 # Environment files
 .env
 
+# Cloudflare wrangler 缓存（勿提交）
+.wrangler/
+
 # WorkBuddy
 .workbuddy/
 .vscode/
