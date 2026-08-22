@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# ============================================================
+# pre-commit 密钥拦截脚本
+# 作用：git commit 前自动扫描【本次暂存区】是否有疑似密钥/敏感文件，
+#       命中即阻断提交（exit 1），防止密钥被历史记录。
+# 依赖：无外部工具（纯 bash + grep + awk），跨平台可用。
+# ============================================================
+set -euo pipefail
+
+# 颜色
+RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'; NC=$'\033[0m'
+
+# 1) 命中即阻断的「敏感文件名」—— 一个都不准提交
+FORBIDDEN_PATTERNS=(
+  '^\.env$'                 # 真实环境变量，含密钥
+  '^\.env\.'
+  '\.pem$' '\.key$'         # 私钥
+  '\.p12$' '\.pfx$' '\.keystore$'
+  '^\.wrangler/'            # Cloudflare 部署缓存
+  '\.workbuddy/'            # 本地记忆，含敏感约定
+)
+
+# 2) 内容里疑似密钥的正则（宽松匹配，宁多勿漏，命中后人工确认）
+SECRET_REGEX=(
+  'SENDER_PASSWORD\s*=\s*[^#[:space:]]{6,}'
+  'SMTP_PASSWORD\s*=\s*[^#[:space:]]{6,}'
+  'RECIPIENT_EMAIL\s*=\s*[^#[:space:]]{6,}'
+  '(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*["'"'"'][A-Za-z0-9_\-]{12,}["'"'"']'
+  'AKID[A-Za-z0-9]{10,}'                     # 腾讯云 SecretId
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+)
+
+# 暂存区文件列表（含删除/重命名需跳过）
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR || true)
+if [ -z "$staged_files" ]; then
+  exit 0
+fi
+
+echo "${YELLOW}[pre-commit] 正在扫描暂存的 $([ "$(printf '%s\n' "$staged_files" | wc -l)" ] && echo ...) 个文件...${NC}"
+
+violation=0
+
+# ---- 检查文件名 ----
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  for pat in "${FORBIDDEN_PATTERNS[@]}"; do
+    if echo "$file" | grep -qE "$pat"; then
+      echo "${RED}✗ 禁止提交敏感文件: $file${NC}"
+      echo "    文件名命中: $pat"
+      echo "    如需保留本地，请在 .gitignore 中忽略它，而不是提交。"
+      violation=1
+    fi
+  done
+done <<< "$staged_files"
+
+# ---- 检查内容 ----
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  # 跳过二进制，避免 grep 报错
+  if ! grep -qIq '' "$file" 2>/dev/null; then
+    continue
+  fi
+  for pat in "${SECRET_REGEX[@]}"; do
+    if grep -EqI "$pat" "$file" 2>/dev/null; then
+      line=$(grep -Ein "$pat" "$file" 2>/dev/null | head -1)
+      echo "${RED}✗ 检测到疑似密钥: $file${NC}"
+      echo "    行: $line"
+      echo "    （可能是误报，请确认该值是否为占位符）"
+      violation=1
+    fi
+  done
+done <<< "$staged_files"
+
+if [ "$violation" -ne 0 ]; then
+  echo ""
+  echo "${RED}═══ 提交已阻断 ═══${NC}"
+  echo "检测到敏感信息。请："
+  echo "  1) 把真实密钥放进 .env，确认 .env 已被 .gitignore 忽略；"
+  echo "  2) 占位符（如 your_password）可加入白名单继续提交。"
+  echo ""
+  exit 1
+fi
+
+echo "${GREEN}[pre-commit] 未发现敏感信息，允许提交。${NC}"
+exit 0
