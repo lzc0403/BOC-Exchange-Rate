@@ -56,3 +56,5 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+# Playwright 验证码调试图片（运行时生成）
+_pw_*.png

@@ -99,6 +99,7 @@ def acquire_and_backfill(dates_by_currency):
     import cv2, numpy as np, time, random
 
     _img_urls = {}
+    _img_bodies = {}  # 响应拦截直接保存图片字节（2026-11-06 起 Geetest CDN 拒绝 requests 直连下载）
     _written = {}
     _cur = {}
 
@@ -117,6 +118,17 @@ def acquire_and_backfill(dates_by_currency):
 
     def _on_response(response):
         u = response.url
+        if "assests/20/slide/" in u:
+            # 在浏览器上下文内取 body（带 cookie/会话），CDN 防盗链无法拒绝
+            try:
+                if "fullbg" in u:
+                    _img_bodies["fullbg"] = response.body()
+                elif "/bg/" in u:
+                    _img_bodies["bg"] = response.body()
+                elif "/slice/" in u:
+                    _img_bodies["slice"] = response.body()
+            except Exception as e:
+                log.warning(f"  [resp] 验证码图片body捕获失败: {e}")
         if "searchMultipleExchangeByXian" not in u:
             return
         cur = _cur.get("currency")
@@ -190,6 +202,17 @@ def acquire_and_backfill(dates_by_currency):
                     return wb["width"]
         return 300.0
 
+    def _reset_img_state():
+        """每次验证尝试前重置图片状态：清 URL/body 缓存并删除上一轮的落盘图片，
+        防止新旧验证码图片混用导致缺口计算错位。"""
+        _img_urls.clear()
+        _img_bodies.clear()
+        for f in ("_pw_fullbg.png", "_pw_bg.png", "_pw_slice.png"):
+            try:
+                (_THIS / f).unlink()
+            except OSError:
+                pass
+
     def _get_gap_x(timeout=120):
         # BOC Geetest 为 bind 模式：点查询后才开始加载整套 SDK（gt4.js→挑战→图片），
         # 首次冷加载实测要 25~40s，故等待窗口必须给足（默认 120 次 × 0.5s = 60s）。
@@ -199,15 +222,33 @@ def acquire_and_backfill(dates_by_currency):
             time.sleep(0.5)
         else:
             return None, None
-        try:
-            r1 = requests.get(_img_urls["fullbg"], timeout=20)
-            open(str(_THIS / "_pw_fullbg.png"), "wb").write(r1.content)
-            r2 = requests.get(_img_urls["bg"], timeout=20)
-            open(str(_THIS / "_pw_bg.png"), "wb").write(r2.content)
-            r3 = requests.get(_img_urls["slice"], timeout=20)
-            open(str(_THIS / "_pw_slice.png"), "wb").write(r3.content)
-        except Exception:
-            return None, None
+        # 首选：响应拦截保存的图片 body（浏览器会话内，绕过 CDN 防盗链）
+        f_p = _THIS / "_pw_fullbg.png"
+        b_p = _THIS / "_pw_bg.png"
+        s_p = _THIS / "_pw_slice.png"
+        if all(k in _img_bodies for k in ("fullbg", "bg", "slice")):
+            try:
+                open(str(f_p), "wb").write(_img_bodies["fullbg"])
+                open(str(b_p), "wb").write(_img_bodies["bg"])
+                open(str(s_p), "wb").write(_img_bodies["slice"])
+            except Exception as e:
+                log.warning(f"  [gap] 浏览器body写盘失败: {e}")
+        # 兜底：requests 直连（带浏览器头），并记录真实异常不再静默吞掉
+        if not (f_p.exists() and b_p.exists() and s_p.exists()):
+            try:
+                hdr = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                    "Referer": "https://www.boc.cn/",
+                }
+                r1 = requests.get(_img_urls["fullbg"], headers=hdr, timeout=20)
+                open(str(f_p), "wb").write(r1.content)
+                r2 = requests.get(_img_urls["bg"], headers=hdr, timeout=20)
+                open(str(b_p), "wb").write(r2.content)
+                r3 = requests.get(_img_urls["slice"], headers=hdr, timeout=20)
+                open(str(s_p), "wb").write(r3.content)
+            except Exception as e:
+                log.warning(f"  [gap] 直连下载验证码图片失败: {type(e).__name__}: {e}")
+                return None, None
         return _compute_gap_x()
 
     def _drag_natural(page, box, dist):
@@ -257,7 +298,7 @@ def acquire_and_backfill(dates_by_currency):
                 # 避免上一次验证成功的动画/状态污染下一次初始化（实测首日后会失败）。
                 page.goto(HISTORY_PAGE_URL, wait_until="load", timeout=60000)
                 page.wait_for_timeout(2000)
-                _img_urls.clear()
+                _reset_img_state()
                 page.evaluate(
                     "(dd) => { $('#searchTime').val(dd); $('#searchTime').trigger('change'); $('#searchTime').blur(); }",
                     d.strftime(DATE_FMT))
@@ -281,7 +322,7 @@ def acquire_and_backfill(dates_by_currency):
                         # 不用 .geetest_refresh：它不可靠且会打断在途的验证/搜索请求。
                         page.goto(HISTORY_PAGE_URL, wait_until="load", timeout=60000)
                         page.wait_for_timeout(2000)
-                        _img_urls.clear()
+                        _reset_img_state()
                         page.evaluate(
                             "(dd) => { $('#searchTime').val(dd); $('#searchTime').trigger('change'); $('#searchTime').blur(); }",
                             d.strftime(DATE_FMT))
